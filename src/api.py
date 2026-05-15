@@ -151,40 +151,95 @@ def fetch_instagram_profile(profile: dict) -> dict:
 
 
 def fetch_instagram_audience(profile: dict) -> dict:
-    """Lifetime audience breakdown: gender/age and top countries."""
+    """
+    Lifetime audience breakdown: gender/age and top countries.
+    Tries the v17+ format (follower_demographics + breakdown) first,
+    then falls back to the legacy audience_gender_age / audience_country metrics.
+    """
     ig_id = profile["instagram_id"]
     token = _token()
     result = {"gender_age": {}, "countries": {}}
 
-    # Gender + Age distribution
+    # ── Gender + Age ──────────────────────────────────────────────────────────
+    # Attempt 1: new endpoint (Graph API v17+)
     try:
         resp = _get(f"{GRAPH}/{ig_id}/insights", {
-            "metric":       "audience_gender_age",
-            "period":       "lifetime",
+            "metric":      "follower_demographics",
+            "period":      "lifetime",
+            "breakdown":   "gender,age",
+            "metric_type": "total_value",
             "access_token": token,
         })
         for m in resp.get("data", []):
-            if m.get("name") == "audience_gender_age":
-                vals = m.get("values", [])
-                if vals:
-                    result["gender_age"] = vals[-1].get("value", {})
+            if m.get("name") == "follower_demographics":
+                tv = m.get("total_value", {})
+                for bd in tv.get("breakdowns", []):
+                    dims = bd.get("dimension_keys", [])
+                    if "gender" in dims and "age" in dims:
+                        gi = dims.index("gender")
+                        ai = dims.index("age")
+                        for res in bd.get("results", []):
+                            dv = res.get("dimension_values", [])
+                            if len(dv) >= 2:
+                                result["gender_age"][f"{dv[gi]}.{dv[ai]}"] = res.get("value", 0)
     except Exception:
         pass
 
-    # Country distribution
+    # Attempt 2: legacy metric (pre-v17)
+    if not result["gender_age"]:
+        try:
+            resp = _get(f"{GRAPH}/{ig_id}/insights", {
+                "metric":       "audience_gender_age",
+                "period":       "lifetime",
+                "access_token": token,
+            })
+            for m in resp.get("data", []):
+                if m.get("name") == "audience_gender_age":
+                    vals = m.get("values", [])
+                    if vals:
+                        result["gender_age"] = vals[-1].get("value", {})
+        except Exception:
+            pass
+
+    # ── Countries ─────────────────────────────────────────────────────────────
+    # Attempt 1: new endpoint
     try:
         resp = _get(f"{GRAPH}/{ig_id}/insights", {
-            "metric":       "audience_country",
-            "period":       "lifetime",
+            "metric":      "follower_demographics",
+            "period":      "lifetime",
+            "breakdown":   "country",
+            "metric_type": "total_value",
             "access_token": token,
         })
         for m in resp.get("data", []):
-            if m.get("name") == "audience_country":
-                vals = m.get("values", [])
-                if vals:
-                    result["countries"] = vals[-1].get("value", {})
+            if m.get("name") == "follower_demographics":
+                tv = m.get("total_value", {})
+                for bd in tv.get("breakdowns", []):
+                    dims = bd.get("dimension_keys", [])
+                    if "country" in dims:
+                        ci = dims.index("country")
+                        for res in bd.get("results", []):
+                            dv = res.get("dimension_values", [])
+                            if dv:
+                                result["countries"][dv[ci]] = res.get("value", 0)
     except Exception:
         pass
+
+    # Attempt 2: legacy metric
+    if not result["countries"]:
+        try:
+            resp = _get(f"{GRAPH}/{ig_id}/insights", {
+                "metric":       "audience_country",
+                "period":       "lifetime",
+                "access_token": token,
+            })
+            for m in resp.get("data", []):
+                if m.get("name") == "audience_country":
+                    vals = m.get("values", [])
+                    if vals:
+                        result["countries"] = vals[-1].get("value", {})
+        except Exception:
+            pass
 
     return result
 
