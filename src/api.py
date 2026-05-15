@@ -6,7 +6,7 @@ import json
 import requests
 from datetime import date, timedelta
 
-GRAPH = "https://graph.facebook.com/v21.0"
+GRAPH = "https://graph.facebook.com/v25.0"
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
     # ── Account-level daily reach ────────────────────────────────────────────
     try:
         resp = _get(f"{GRAPH}/{ig_id}/insights", {
-            "metric":       "reach,impressions",
+            "metric":       "reach",
             "period":       "day",
             "since":        date_from,
             "until":        until,
