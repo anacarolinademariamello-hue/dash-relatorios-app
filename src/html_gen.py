@@ -161,7 +161,8 @@ def _obs_card(d: dict, report_type: str) -> str:
 def _daily_charts(d: dict, report_type: str, uid: str) -> str:
     if report_type == "Só Pago":
         return ""
-    L = _js(d["labels"])
+
+    L  = _js(d["labels"])
     Ro = _js(d["daily_organic_reach"])
     Rp = _js(d["daily_paid_reach"])
     Li = _js(d["daily_likes"])
@@ -169,109 +170,137 @@ def _daily_charts(d: dict, report_type: str, uid: str) -> str:
     Sa = _js(d["daily_saves"])
     Sh = _js(d["daily_shares"])
 
-    chart1_id = f"cDailyR_{uid}"
-    chart2_id = f"cDailyI_{uid}"
+    chart1_id = "cDailyR_" + uid
+    chart2_id = "cDailyI_" + uid
 
-    return f"""
-<section class="section">
-<h2 class="section-title">📅 Evolução Diária</h2>
-<div class="chart-row cols-1">
-<div class="chart-card"><h4>Alcance Orgânico vs Pago por Dia</h4>
-<div style="position:relative;height:320px"><canvas id="{chart1_id}"></canvas></div></div>
-</div>
-<div class="chart-row cols-1">
-<div class="chart-card"><h4>Interações Diárias (Likes · Comentários · Saves · Shares)</h4>
-<div style="position:relative;height:260px"><canvas id="{chart2_id}"></canvas></div></div>
-</div>
-</section>
-<script>
-(function(){{
-var L={L},Ro={Ro},Rp={Rp},Li={Li},Co={Co},Sa={Sa},Sh={Sh};
-new Chart(document.getElementById('{chart1_id}'),{{type:'bar',data:{{labels:L,datasets:[
-  {{label:'Orgânico',data:Ro,backgroundColor:'rgba(26,90,154,0.65)',stack:'s'}},
-  {{label:'Pago',data:Rp,backgroundColor:'rgba(248,185,64,0.75)',stack:'s'}}
-]}},options:{{responsive:true,maintainAspectRatio:false,plugins:{{legend:{{position:'top'}}}},scales:{{x:{{stacked:true,ticks:{{maxRotation:45,font:{{size:10}}}},grid:{{display:false}}}},y:{{stacked:true,beginAtZero:true}}}}}}}});
-new Chart(document.getElementById('{chart2_id}'),{{type:'bar',data:{{labels:L,datasets:[
-  {{label:'Likes',data:Li,backgroundColor:'rgba(26,90,154,0.75)',stack:'s'}},
-  {{label:'Comentários',data:Co,backgroundColor:'rgba(248,185,64,0.75)',stack:'s'}},
-  {{label:'Saves',data:Sa,backgroundColor:'rgba(16,185,129,0.75)',stack:'s'}},
-  {{label:'Shares',data:Sh,backgroundColor:'rgba(249,115,22,0.75)',stack:'s'}}
-]}},options:{{responsive:true,maintainAspectRatio:false,plugins:{{legend:{{position:'top'}}}},scales:{{x:{{stacked:true,ticks:{{maxRotation:45,font:{{size:10}}}},grid:{{display:false}}}},y:{{stacked:true,beginAtZero:true}}}}}}}});
-}})();
-</script>"""
+    # Build JS with % formatting so { } chars don't need escaping
+    js = (
+        "(function(){\n"
+        "var L=%s,Ro=%s,Rp=%s,Li=%s,Co=%s,Sa=%s,Sh=%s;\n"
+        "new Chart(document.getElementById('%s'),{type:'bar',data:{labels:L,datasets:["
+        "{label:'Orgânico',data:Ro,backgroundColor:'rgba(26,90,154,0.65)',stack:'s'},"
+        "{label:'Pago',data:Rp,backgroundColor:'rgba(248,185,64,0.75)',stack:'s'}"
+        "]},options:{responsive:true,maintainAspectRatio:false,"
+        "plugins:{legend:{position:'top'}},"
+        "scales:{x:{stacked:true,ticks:{maxRotation:45,font:{size:10}},grid:{display:false}},"
+        "y:{stacked:true,beginAtZero:true}}}});\n"
+        "new Chart(document.getElementById('%s'),{type:'bar',data:{labels:L,datasets:["
+        "{label:'Likes',data:Li,backgroundColor:'rgba(26,90,154,0.75)',stack:'s'},"
+        "{label:'Comentários',data:Co,backgroundColor:'rgba(248,185,64,0.75)',stack:'s'},"
+        "{label:'Saves',data:Sa,backgroundColor:'rgba(16,185,129,0.75)',stack:'s'},"
+        "{label:'Shares',data:Sh,backgroundColor:'rgba(249,115,22,0.75)',stack:'s'}"
+        "]},options:{responsive:true,maintainAspectRatio:false,"
+        "plugins:{legend:{position:'top'}},"
+        "scales:{x:{stacked:true,ticks:{maxRotation:45,font:{size:10}},grid:{display:false}},"
+        "y:{stacked:true,beginAtZero:true}}}});\n"
+        "})();"
+    ) % (L, Ro, Rp, Li, Co, Sa, Sh, chart1_id, chart2_id)
+
+    return (
+        '\n<section class="section">'
+        '\n<h2 class="section-title">📅 Evolução Diária</h2>'
+        '\n<div class="chart-row cols-1">'
+        '\n<div class="chart-card"><h4>Alcance Orgânico vs Pago por Dia</h4>'
+        f'\n<div style="position:relative;height:320px"><canvas id="{chart1_id}"></canvas></div></div>'
+        '\n</div>'
+        '\n<div class="chart-row cols-1">'
+        '\n<div class="chart-card"><h4>Interações Diárias (Likes · Comentários · Saves · Shares)</h4>'
+        f'\n<div style="position:relative;height:260px"><canvas id="{chart2_id}"></canvas></div></div>'
+        '\n</div>'
+        '\n</section>'
+        '\n<script>\n' + js + '\n</script>'
+    )
 
 
 def _paid_section(d: dict, report_type: str, uid: str) -> str:
     if report_type == "Só Orgânico":
         return ""
+
     camps = d["campaigns"]
 
     rows_html = ""
     for c in camps:
-        rows_html += f"""<tr>
-<td>{c['name']}</td><td>{c['objective']}</td>
-<td>R${_br(c['spend'],2)}</td><td>{_br(c['impressions'])}</td>
-<td>{_br(c['reach'])}</td><td>{_br(c['clicks'])}</td>
-<td>R${_br(c['cpm'],2)}</td><td>R${_br(c['cpc'],2)}</td>
-<td>{_br(c['ctr'],2)}%</td><td>{_status_pill(c['status'])}</td></tr>"""
+        rows_html += (
+            f"<tr><td>{c['name']}</td><td>{c['objective']}</td>"
+            f"<td>R${_br(c['spend'],2)}</td><td>{_br(c['impressions'])}</td>"
+            f"<td>{_br(c['reach'])}</td><td>{_br(c['clicks'])}</td>"
+            f"<td>R${_br(c['cpm'],2)}</td><td>R${_br(c['cpc'],2)}</td>"
+            f"<td>{_br(c['ctr'],2)}%</td><td>{_status_pill(c['status'])}</td></tr>"
+        )
 
-    # Total row
-    rows_html += f"""<tr style="background:var(--pl);font-weight:700;">
-<td><strong>TOTAL</strong></td><td>—</td>
-<td><strong>R${_br(d['total_spend'],2)}</strong></td>
-<td><strong>{_br(d['total_impressions'])}</strong></td>
-<td><strong>{_br(d['total_paid_reach'])}</strong></td>
-<td><strong>{_br(d['total_clicks'])}</strong></td>
-<td><strong>R${_br(d['avg_cpm'],2)}</strong></td>
-<td><strong>R${_br(d['avg_cpc'],2)}</strong></td><td>—</td><td>—</td></tr>"""
+    rows_html += (
+        '<tr style="background:var(--pl);font-weight:700;">'
+        f'<td><strong>TOTAL</strong></td><td>—</td>'
+        f'<td><strong>R${_br(d["total_spend"],2)}</strong></td>'
+        f'<td><strong>{_br(d["total_impressions"])}</strong></td>'
+        f'<td><strong>{_br(d["total_paid_reach"])}</strong></td>'
+        f'<td><strong>{_br(d["total_clicks"])}</strong></td>'
+        f'<td><strong>R${_br(d["avg_cpm"],2)}</strong></td>'
+        f'<td><strong>R${_br(d["avg_cpc"],2)}</strong></td>'
+        '<td>—</td><td>—</td></tr>'
+    )
 
-    chart_split_id = f"cPaidSplit_{uid}"
-    chart_spend_id = f"cSpend_{uid}"
+    chart_split_id = "cPaidSplit_" + uid
+    chart_spend_id = "cSpend_" + uid
+
     L  = _js(d["labels"])
     Ro = _js(d["daily_organic_reach"])
     Rp = _js(d["daily_paid_reach"])
     Sp = _js(d["daily_spend"])
 
-    return f"""
-<section class="section">
-<h2 class="section-title">💰 Análise de Tráfego Pago</h2>
-<div class="mini-kpi-row">
-  <div class="mini-kpi"><div class="val">R${_br(d['total_spend'],2)}</div><div class="lbl">Investido</div></div>
-  <div class="mini-kpi"><div class="val">{_br(d['total_impressions'])}</div><div class="lbl">Impressões</div></div>
-  <div class="mini-kpi"><div class="val">{_br(d['total_paid_reach'])}</div><div class="lbl">Alcançadas</div></div>
-  <div class="mini-kpi"><div class="val">{_br(d['total_clicks'])}</div><div class="lbl">Cliques</div></div>
-  <div class="mini-kpi"><div class="val">R${_br(d['avg_cpm'],2)}</div><div class="lbl">CPM Médio</div></div>
-  <div class="mini-kpi"><div class="val">R${_br(d['cost_per_follower'],2)}</div><div class="lbl">Custo/Seguidor est.</div></div>
-</div>
-<div class="table-wrap">
-<table>
-<thead><tr><th>Campanha</th><th>Objetivo</th><th>Gasto</th><th>Impressões</th><th>Alcance</th><th>Cliques</th><th>CPM</th><th>CPC</th><th>CTR</th><th>Status</th></tr></thead>
-<tbody>{rows_html}</tbody>
-</table>
-</div>
-<div class="chart-row cols-2">
-<div class="chart-card"><h4>Alcance Orgânico vs Pago por Dia</h4>
-<div style="position:relative;height:260px"><canvas id="{chart_split_id}"></canvas></div></div>
-<div class="chart-card"><h4>Gasto Diário em Anúncios (R$)</h4>
-<div style="position:relative;height:260px"><canvas id="{chart_spend_id}"></canvas></div></div>
-</div>
-</section>
-<script>
-(function(){{
-var L={L},Ro={Ro},Rp={Rp},Sp={Sp};
-new Chart(document.getElementById('{chart_split_id}'),{{type:'bar',data:{{labels:L,datasets:[
-  {{label:'Orgânico',data:Ro,backgroundColor:'rgba(26,90,154,0.65)',stack:'s'}},
-  {{label:'Pago',data:Rp,backgroundColor:'rgba(248,185,64,0.75)',stack:'s'}}
-]}},options:{{responsive:true,maintainAspectRatio:false,plugins:{{legend:{{position:'top'}}}},scales:{{x:{{stacked:true,ticks:{{maxRotation:45,font:{{size:10}}}},grid:{{display:false}}}},y:{{stacked:true,beginAtZero:true}}}}}}}});
-new Chart(document.getElementById('{chart_spend_id}'),{{type:'bar',data:{{labels:L,datasets:[
-  {{label:'Gasto R$',data:Sp,backgroundColor:Sp.map(function(v){{return v>0?'rgba(248,185,64,0.75)':'rgba(0,0,0,0)'}}),borderColor:Sp.map(function(v){{return v>0?'#d99a20':'transparent'}}),borderWidth:1,borderRadius:4}}
-]}},options:{{responsive:true,maintainAspectRatio:false,plugins:{{legend:{{display:false}}}},scales:{{x:{{ticks:{{maxRotation:45,font:{{size:10}}}},grid:{{display:false}}}},y:{{beginAtZero:true,ticks:{{callback:function(v){{return'R$'+v.toFixed(0)}}}}}}}}}}}}});
-}})();
-</script>"""
+    # Build JS with % formatting so { } chars don't need escaping
+    js = (
+        "(function(){\n"
+        "var L=%s,Ro=%s,Rp=%s,Sp=%s;\n"
+        "new Chart(document.getElementById('%s'),{type:'bar',data:{labels:L,datasets:["
+        "{label:'Orgânico',data:Ro,backgroundColor:'rgba(26,90,154,0.65)',stack:'s'},"
+        "{label:'Pago',data:Rp,backgroundColor:'rgba(248,185,64,0.75)',stack:'s'}"
+        "]},options:{responsive:true,maintainAspectRatio:false,"
+        "plugins:{legend:{position:'top'}},"
+        "scales:{x:{stacked:true,ticks:{maxRotation:45,font:{size:10}},grid:{display:false}},"
+        "y:{stacked:true,beginAtZero:true}}}});\n"
+        "new Chart(document.getElementById('%s'),{type:'bar',data:{labels:L,datasets:[{"
+        "label:'Gasto R$',data:Sp,"
+        "backgroundColor:Sp.map(function(v){return v>0?'rgba(248,185,64,0.75)':'rgba(0,0,0,0)';}),"
+        "borderColor:Sp.map(function(v){return v>0?'#d99a20':'transparent';}),"
+        "borderWidth:1,borderRadius:4"
+        "}]},options:{responsive:true,maintainAspectRatio:false,"
+        "plugins:{legend:{display:false}},"
+        "scales:{x:{ticks:{maxRotation:45,font:{size:10}},grid:{display:false}},"
+        "y:{beginAtZero:true,ticks:{callback:function(v){return'R$'+v.toFixed(0);}}}}}});\n"
+        "})();"
+    ) % (L, Ro, Rp, Sp, chart_split_id, chart_spend_id)
+
+    mini_kpis = (
+        f'<div class="mini-kpi"><div class="val">R${_br(d["total_spend"],2)}</div><div class="lbl">Investido</div></div>'
+        f'<div class="mini-kpi"><div class="val">{_br(d["total_impressions"])}</div><div class="lbl">Impressões</div></div>'
+        f'<div class="mini-kpi"><div class="val">{_br(d["total_paid_reach"])}</div><div class="lbl">Alcançadas</div></div>'
+        f'<div class="mini-kpi"><div class="val">{_br(d["total_clicks"])}</div><div class="lbl">Cliques</div></div>'
+        f'<div class="mini-kpi"><div class="val">R${_br(d["avg_cpm"],2)}</div><div class="lbl">CPM Médio</div></div>'
+        f'<div class="mini-kpi"><div class="val">R${_br(d["cost_per_follower"],2)}</div><div class="lbl">Custo/Seguidor est.</div></div>'
+    )
+
+    return (
+        '\n<section class="section">'
+        '\n<h2 class="section-title">💰 Análise de Tráfego Pago</h2>'
+        f'\n<div class="mini-kpi-row">{mini_kpis}</div>'
+        '\n<div class="table-wrap"><table>'
+        '\n<thead><tr><th>Campanha</th><th>Objetivo</th><th>Gasto</th><th>Impressões</th>'
+        '<th>Alcance</th><th>Cliques</th><th>CPM</th><th>CPC</th><th>CTR</th><th>Status</th></tr></thead>'
+        f'\n<tbody>{rows_html}</tbody>'
+        '\n</table></div>'
+        '\n<div class="chart-row cols-2">'
+        '\n<div class="chart-card"><h4>Alcance Orgânico vs Pago por Dia</h4>'
+        f'\n<div style="position:relative;height:260px"><canvas id="{chart_split_id}"></canvas></div></div>'
+        '\n<div class="chart-card"><h4>Gasto Diário em Anúncios (R$)</h4>'
+        f'\n<div style="position:relative;height:260px"><canvas id="{chart_spend_id}"></canvas></div></div>'
+        '\n</div>'
+        '\n</section>'
+        '\n<script>\n' + js + '\n</script>'
+    )
 
 
 def _strategic(d: dict, report_type: str) -> str:
-    # Auto-generate analysis points from the data
     strengths = []
     attentions = []
 
@@ -309,12 +338,10 @@ def _strategic(d: dict, report_type: str) -> str:
             attentions.append(("💰", f"Custo estimado por seguidor de <strong>R${_br(cpf,2)}</strong> — acima da meta de R$2,00; otimizar campanhas de tráfego."))
 
     if report_type != "Só Pago":
-        # Check for gaps
         zero_days = sum(1 for v in d["daily_organic_reach"] if v == 0)
         if zero_days > 3:
             attentions.append(("🗓️", f"<strong>{zero_days} dias sem alcance orgânico</strong> no período — gaps de publicação prejudicam o momentum do algoritmo."))
 
-    # Pad to min 3 each
     if not strengths:
         strengths.append(("✅", "Dados insuficientes para análise de pontos fortes no período selecionado."))
     if not attentions:
@@ -340,16 +367,19 @@ def _strategic(d: dict, report_type: str) -> str:
 
 
 def _footer(profile: dict, d: dict) -> str:
-    return f"""<footer class="site-footer">
-<p>{profile['footer']} &nbsp;|&nbsp; {profile['handle']} &nbsp;|&nbsp; Período: {d['period_label']} &nbsp;|&nbsp; Dados: Instagram Insights + Meta Ads Manager</p>
-</footer>"""
+    return (
+        '<footer class="site-footer">'
+        f'<p>{profile["footer"]} &nbsp;|&nbsp; {profile["handle"]} &nbsp;|&nbsp; '
+        f'Período: {d["period_label"]} &nbsp;|&nbsp; Dados: Instagram Insights + Meta Ads Manager</p>'
+        '</footer>'
+    )
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def generate(profile: dict, data: dict, report_type: str = "Geral") -> str:
     import time
-    uid = str(int(time.time() * 1000))[-6:]  # unique suffix to avoid chart ID collisions
+    uid = str(int(time.time() * 1000))[-6:]
     c = profile["colors"]
 
     parts = [
