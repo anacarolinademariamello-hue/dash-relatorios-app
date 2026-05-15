@@ -42,7 +42,7 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
 
     by_date: dict = {}
 
-    # ── Account-level daily reach ────────────────────────────────────────────
+    # ── Account-level daily reach + follower change ──────────────────────────
     try:
         resp = _get(f"{GRAPH}/{ig_id}/insights", {
             "metric":       "reach",
@@ -58,6 +58,21 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
                 by_date.setdefault(d, {})[name] = v["value"]
     except Exception as e:
         raise RuntimeError(f"Erro ao buscar insights do Instagram: {e}")
+
+    # ── Daily follower change ─────────────────────────────────────────────────
+    try:
+        fc_resp = _get(f"{GRAPH}/{ig_id}/insights", {
+            "metric":       "follower_count",
+            "period":       "day",
+            "since":        date_from,
+            "until":        until,
+            "access_token": token,
+        })
+        for v in fc_resp.get("data", [{}])[0].get("values", []):
+            d = v["end_time"][:10]
+            by_date.setdefault(d, {})["follower_count"] = v["value"]
+    except Exception:
+        pass  # follower_count opcional
 
     # ── Media-level engagement (likes, comments, saves, shares) ─────────────
     try:
@@ -99,6 +114,7 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
             "saves":              saves,
             "shares":             shares,
             "total_interactions": likes + comments + saves + shares,
+            "follower_count":     m.get("follower_count", 0),
         })
     return rows
 

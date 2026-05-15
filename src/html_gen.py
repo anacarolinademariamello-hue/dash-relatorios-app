@@ -126,6 +126,7 @@ def _kpis(d: dict, report_type: str) -> str:
             f'<div class="kpi-card"><span class="kpi-icon">📊</span><div class="kpi-val">{_br(d["org_eng_rate"], 2)}%</div><div class="kpi-label">Eng. Orgânico</div><span class="kpi-badge badge-green">🔥 vs benchmark 3-5%</span></div>',
             f'<div class="kpi-card"><span class="kpi-icon">❤️</span><div class="kpi-val">{_br(d["total_likes"])}</div><div class="kpi-label">Curtidas</div><span class="kpi-badge badge-blue">likes</span></div>',
             f'<div class="kpi-card"><span class="kpi-icon">🔖</span><div class="kpi-val">{_br(d["total_saves"])}</div><div class="kpi-label">Salvamentos</div><span class="kpi-badge badge-gold">saves</span></div>',
+            f'<div class="kpi-card"><span class="kpi-icon">📈</span><div class="kpi-val">+{_br(d["followers_gained"])}</div><div class="kpi-label">Seguidores Ganhos</div><span class="kpi-badge badge-green">🌱 {_br(d["followers_organic_est"])} org · 💰 {_br(d["followers_paid_est"])} pago</span></div>',
         ]
     if report_type != "Só Orgânico":
         cards += [

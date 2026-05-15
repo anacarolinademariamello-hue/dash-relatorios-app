@@ -37,6 +37,7 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
     daily_saves = []
     daily_shares = []
     daily_interactions = []
+    daily_follower_change = []
 
     for k in day_keys:
         r = ig_by_date.get(k, {})
@@ -46,6 +47,7 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
         daily_saves.append(int(r.get("saves") or 0))
         daily_shares.append(int(r.get("shares") or 0))
         daily_interactions.append(int(r.get("total_interactions") or 0))
+        daily_follower_change.append(int(r.get("follower_count") or 0))
 
     # ── Meta Ads daily ───────────────────────────────────────────────
     ads_by_date = defaultdict(list)
@@ -123,17 +125,30 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
     avg_cpm = round(total_spend / total_impressions * 1000, 2) if total_impressions else 0
     avg_cpc = round(total_spend / total_clicks, 2) if total_clicks else 0
 
-    # Estimated new followers (not available from Windsor.ai daily — use profile snapshot)
     followers = int(profile_info.get("followers_count") or 0)
     following = int(profile_info.get("follows_count") or 0)
-    media    = int(profile_info.get("media_count") or 0)
-    # Rough cost-per-follower from traffic campaigns spend / 30% conversion of traffic clicks
+    media     = int(profile_info.get("media_count") or 0)
+
+    # Followers gained in period (from daily follower_count metric)
+    followers_gained = sum(daily_follower_change)
+
+    # Paid followers: from campaigns with follow/traffic objective
     traffic_clicks = sum(
         c["clicks"] for c in campaigns
         if "tráfego" in c["name"].lower() or "perfil" in c["name"].lower() or "traffic" in c["name"].lower()
     )
-    new_followers_est = max(1, int(traffic_clicks * 0.28))
-    cost_per_follower = round(total_spend / new_followers_est, 2) if new_followers_est else 0
+    followers_paid_est = max(0, int(traffic_clicks * 0.28))
+
+    # If we have real data use it; otherwise fall back to estimate
+    if followers_gained > 0:
+        followers_organic_est = max(0, followers_gained - followers_paid_est)
+    else:
+        # No follower_count data available — use estimate only
+        followers_gained      = followers_paid_est
+        followers_organic_est = 0
+
+    cost_per_follower = round(total_spend / max(1, followers_paid_est), 2) if total_spend else 0
+    new_followers_est = followers_gained  # keep for backward compat
 
     period_label = f"{labels[0]} – {labels[-1]} {days[0].year}"
 
@@ -147,6 +162,9 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
         "followers": followers,
         "following": following,
         "media": media,
+        "followers_gained": followers_gained,
+        "followers_organic_est": followers_organic_est,
+        "followers_paid_est": followers_paid_est,
         "total_reach": total_reach,
         "total_organic": total_organic,
         "total_paid_reach": total_paid_reach,
