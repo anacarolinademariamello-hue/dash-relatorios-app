@@ -165,7 +165,7 @@ with st.spinner(f"⏳ Buscando dados de {profile['handle']}..."):
                        if report_type != "Só Orgânico" else []
     except Exception as e:
         st.error(f"❌ Erro ao buscar dados: {e}")
-        st.info("Verifique se a chave Windsor.ai está configurada corretamente em `.streamlit/secrets.toml`.")
+        st.info("Verifique se o token Meta está configurado corretamente em `.streamlit/secrets.toml` (campo `meta_access_token`).")
         st.stop()
 
 with st.spinner("🎨 Gerando relatório..."):
