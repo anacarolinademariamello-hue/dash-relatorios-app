@@ -19,10 +19,62 @@ st.set_page_config(
 st.markdown("""
 <style>
 [data-testid="stSidebar"] {background:#0d2137;}
-[data-testid="stSidebar"] * {color:#fff !important;}
-[data-testid="stSidebar"] .stSelectbox label,
-[data-testid="stSidebar"] .stDateInput label,
-[data-testid="stSidebar"] .stRadio label {color:rgba(255,255,255,0.85) !important;}
+
+/* labels e textos gerais */
+[data-testid="stSidebar"] label,
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] div,
+[data-testid="stSidebar"] h1,
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3 {
+    color:#fff !important;
+}
+
+/* campos de input (selectbox, date) — fundo escuro + texto branco */
+[data-testid="stSidebar"] input,
+[data-testid="stSidebar"] select,
+[data-testid="stSidebar"] textarea {
+    background-color:#1a3a5c !important;
+    color:#fff !important;
+    border:1px solid rgba(255,255,255,0.25) !important;
+    border-radius:8px !important;
+}
+
+/* container visual do selectbox */
+[data-testid="stSidebar"] [data-baseweb="select"] > div,
+[data-testid="stSidebar"] [data-baseweb="input"] > div,
+[data-testid="stSidebar"] [data-baseweb="base-input"] {
+    background-color:#1a3a5c !important;
+    border-color:rgba(255,255,255,0.25) !important;
+    border-radius:8px !important;
+    color:#fff !important;
+}
+
+/* texto dentro do selectbox */
+[data-testid="stSidebar"] [data-baseweb="select"] span,
+[data-testid="stSidebar"] [data-baseweb="select"] div {
+    color:#fff !important;
+}
+
+/* ícone de seta do selectbox */
+[data-testid="stSidebar"] [data-baseweb="select"] svg {
+    fill:#fff !important;
+}
+
+/* ícone de calendário */
+[data-testid="stSidebar"] [data-testid="stDateInput"] svg,
+[data-testid="stSidebar"] button[kind="icon"] svg {
+    color:#fff !important;
+    fill:#fff !important;
+}
+
+/* radio buttons */
+[data-testid="stSidebar"] [data-testid="stRadio"] label {
+    color:rgba(255,255,255,0.90) !important;
+}
+
+/* botão gerar */
 [data-testid="stSidebar"] .stButton>button {
     background:linear-gradient(135deg,#f8b940,#d99a20);
     color:#003f7c !important;
@@ -38,6 +90,7 @@ st.markdown("""
     background:linear-gradient(135deg,#ffc94d,#e8aa30);
     transform:translateY(-1px);
 }
+
 div[data-testid="stSidebarNav"] {display:none;}
 </style>
 """, unsafe_allow_html=True)
