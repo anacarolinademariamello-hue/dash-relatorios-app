@@ -3,7 +3,13 @@ import streamlit.components.v1 as components
 from datetime import date, timedelta
 
 from src.profiles import PROFILES
-from src.api import fetch_instagram_daily, fetch_instagram_profile, fetch_meta_ads_daily
+from src.api import (
+    fetch_instagram_daily,
+    fetch_instagram_profile,
+    fetch_instagram_audience,
+    fetch_instagram_top_posts,
+    fetch_meta_ads_daily,
+)
 from src.processor import process
 from src.html_gen import generate
 
@@ -111,8 +117,8 @@ with st.sidebar:
     col1, col2 = st.columns(2)
     default_end   = date.today() - timedelta(days=1)
     default_start = default_end - timedelta(days=29)
-    date_from = col1.date_input("De",    value=default_start, format="DD/MM/YYYY")
-    date_to   = col2.date_input("Até",   value=default_end,   format="DD/MM/YYYY")
+    date_from = col1.date_input("De",   value=default_start, format="DD/MM/YYYY")
+    date_to   = col2.date_input("Até",  value=default_end,   format="DD/MM/YYYY")
 
     report_type = st.radio(
         "Tipo de Relatório",
@@ -153,7 +159,7 @@ if (date_to - date_from).days > 90:
     st.warning("⚠️ Período muito longo pode demorar. Recomendado: até 90 dias.")
 
 # ── Fetch & process ──────────────────────────────────────────────────────────
-profile = PROFILES[profile_name]
+profile       = PROFILES[profile_name]
 date_from_str = date_from.isoformat()
 date_to_str   = date_to.isoformat()
 
@@ -161,6 +167,8 @@ with st.spinner(f"⏳ Buscando dados de {profile['handle']}..."):
     try:
         ig_rows      = fetch_instagram_daily(profile, date_from_str, date_to_str)
         profile_info = fetch_instagram_profile(profile)
+        audience     = fetch_instagram_audience(profile)
+        top_posts    = fetch_instagram_top_posts(profile, date_from_str, date_to_str)
         ads_rows     = fetch_meta_ads_daily(profile, date_from_str, date_to_str) \
                        if report_type != "Só Orgânico" else []
     except Exception as e:
@@ -168,14 +176,22 @@ with st.spinner(f"⏳ Buscando dados de {profile['handle']}..."):
         st.info("Verifique se o token Meta está configurado corretamente em `.streamlit/secrets.toml` (campo `meta_access_token`).")
         st.stop()
 
+# Aviso se não houver dados de alcance (período muito antigo ou sem atividade)
+if not ig_rows:
+    st.warning(
+        "⚠️ Nenhum dado de alcance encontrado para o período selecionado. "
+        "O Instagram Insights pode não ter dados para períodos muito antigos "
+        "ou para contas sem atividade neste intervalo. O relatório será gerado com os dados disponíveis."
+    )
+
 with st.spinner("🎨 Gerando relatório..."):
-    data = process(ig_rows, ads_rows, profile_info, date_from_str, date_to_str)
+    data = process(ig_rows, ads_rows, profile_info, audience, top_posts, date_from_str, date_to_str)
     html = generate(profile, data, report_type)
 
 # ── Render ────────────────────────────────────────────────────────────────────
 st.success(f"✅ Relatório gerado — {profile['handle']} · {data['period_label']} · {report_type}")
 
-# Download button (subtle, top-right)
+# Download button
 col_dl, _ = st.columns([1, 4])
 with col_dl:
     filename = f"relatorio_{profile['key']}_{date_from_str}_{date_to_str}.html"
@@ -187,4 +203,4 @@ with col_dl:
         use_container_width=True,
     )
 
-components.html(html, height=4000, scrolling=True)
+components.html(html, height=5000, scrolling=True)

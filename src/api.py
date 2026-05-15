@@ -42,7 +42,7 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
 
     by_date: dict = {}
 
-    # ── Account-level daily reach + follower change ──────────────────────────
+    # ── Account-level daily reach ────────────────────────────────────────────
     try:
         resp = _get(f"{GRAPH}/{ig_id}/insights", {
             "metric":       "reach",
@@ -56,8 +56,9 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
             for v in metric_obj.get("values", []):
                 d = v["end_time"][:10]
                 by_date.setdefault(d, {})[name] = v["value"]
-    except Exception as e:
-        raise RuntimeError(f"Erro ao buscar insights do Instagram: {e}")
+    except Exception:
+        # Reach data unavailable for this period (may happen for old date ranges)
+        pass
 
     # ── Daily follower change ─────────────────────────────────────────────────
     try:
@@ -72,7 +73,7 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
             d = v["end_time"][:10]
             by_date.setdefault(d, {})["follower_count"] = v["value"]
     except Exception:
-        pass  # follower_count opcional
+        pass  # follower_count opcional / só disponível nos últimos 30 dias
 
     # ── Media-level engagement (likes, comments, saves, shares) ─────────────
     try:
@@ -97,7 +98,7 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
                 elif ins["name"] == "shares":
                     by_date[d]["shares"] = by_date[d].get("shares", 0) + val
     except Exception:
-        pass  # media insights optional — reach data is enough
+        pass  # media insights optional
 
     # ── Build rows ───────────────────────────────────────────────────────────
     rows = []
@@ -147,6 +148,95 @@ def fetch_instagram_profile(profile: dict) -> dict:
         "media_count":         data.get("media_count", 0),
         "profile_picture_url": picture_url,
     }
+
+
+def fetch_instagram_audience(profile: dict) -> dict:
+    """Lifetime audience breakdown: gender/age and top countries."""
+    ig_id = profile["instagram_id"]
+    token = _token()
+    result = {"gender_age": {}, "countries": {}}
+
+    # Gender + Age distribution
+    try:
+        resp = _get(f"{GRAPH}/{ig_id}/insights", {
+            "metric":       "audience_gender_age",
+            "period":       "lifetime",
+            "access_token": token,
+        })
+        for m in resp.get("data", []):
+            if m.get("name") == "audience_gender_age":
+                vals = m.get("values", [])
+                if vals:
+                    result["gender_age"] = vals[-1].get("value", {})
+    except Exception:
+        pass
+
+    # Country distribution
+    try:
+        resp = _get(f"{GRAPH}/{ig_id}/insights", {
+            "metric":       "audience_country",
+            "period":       "lifetime",
+            "access_token": token,
+        })
+        for m in resp.get("data", []):
+            if m.get("name") == "audience_country":
+                vals = m.get("values", [])
+                if vals:
+                    result["countries"] = vals[-1].get("value", {})
+    except Exception:
+        pass
+
+    return result
+
+
+def fetch_instagram_top_posts(profile: dict, date_from: str, date_to: str) -> list:
+    """Top posts with media_type and full engagement metrics for ranking."""
+    ig_id = profile["instagram_id"]
+    token = _token()
+    until = _next_day(date_to)
+    posts = []
+
+    try:
+        resp = _get(f"{GRAPH}/{ig_id}/media", {
+            "fields":       "id,timestamp,media_type,media_product_type,permalink,like_count,comments_count,insights.metric(saved,shares,reach,impressions)",
+            "since":        date_from,
+            "until":        until,
+            "limit":        50,
+            "access_token": token,
+        })
+        for m in resp.get("data", []):
+            post = {
+                "id":                m.get("id", ""),
+                "date":              (m.get("timestamp") or "")[:10],
+                "media_type":        m.get("media_type", "IMAGE"),
+                "media_product_type": m.get("media_product_type", ""),
+                "permalink":         m.get("permalink", ""),
+                "likes":             int(m.get("like_count") or 0),
+                "comments":          int(m.get("comments_count") or 0),
+                "saves":             0,
+                "shares":            0,
+                "reach":             0,
+                "impressions":       0,
+            }
+            for ins in (m.get("insights") or {}).get("data", []):
+                val  = int((ins.get("values") or [{}])[0].get("value") or 0)
+                name = ins.get("name", "")
+                if name == "saved":
+                    post["saves"] = val
+                elif name == "shares":
+                    post["shares"] = val
+                elif name == "reach":
+                    post["reach"] = val
+                elif name == "impressions":
+                    post["impressions"] = val
+            post["total_interactions"] = (
+                post["likes"] + post["comments"] + post["saves"] + post["shares"]
+            )
+            posts.append(post)
+    except Exception:
+        pass
+
+    return posts
 
 
 # ── Meta Ads ──────────────────────────────────────────────────────────────────

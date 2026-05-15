@@ -5,7 +5,7 @@ report_type: "Geral" | "Só Orgânico" | "Só Pago"
 import json
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _br(v, decimals=0):
     """Format number Brazilian style."""
@@ -34,7 +34,11 @@ def _status_pill(status):
     return mapping.get(status, "")
 
 
-# ── CSS ──────────────────────────────────────────────────────────────────────
+def _format_icon(fmt):
+    return {"Reel": "🎬", "Carrossel": "🔄", "Foto": "📸", "Vídeo": "▶️"}.get(fmt, "📄")
+
+
+# ── CSS ───────────────────────────────────────────────────────────────────────
 
 def _css(c: dict) -> str:
     return f"""<style>
@@ -44,7 +48,7 @@ body{{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var
 a{{color:var(--p2);text-decoration:none;}}a:hover{{text-decoration:underline;}}
 .site-header{{background:linear-gradient(135deg,var(--p) 0%,var(--p2) 60%,{c['header_end']} 100%);color:#fff;padding:48px 24px 40px;text-align:center;position:relative;overflow:hidden;}}
 .site-header::before{{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 80% 20%,rgba(255,255,255,0.10) 0%,transparent 60%);pointer-events:none;}}
-.avatar-wrap{{width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--ad));display:flex;align-items:center;justify-content:center;font-size:2.4rem;margin:0 auto 16px;box-shadow:0 4px 20px rgba(0,0,0,0.3);border:3px solid rgba(255,255,255,0.3);}}
+.avatar-wrap{{width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,var(--a),var(--ad));display:flex;align-items:center;justify-content:center;font-size:2.4rem;margin:0 auto 16px;box-shadow:0 4px 20px rgba(0,0,0,0.3);border:3px solid rgba(255,255,255,0.3);overflow:hidden;}}
 .header-handle{{font-size:1rem;opacity:0.8;letter-spacing:0.05em;margin-bottom:4px;}}
 .header-name{{font-size:2rem;font-weight:700;letter-spacing:-0.02em;margin-bottom:10px;}}
 .header-bio{{max-width:520px;margin:0 auto 16px;opacity:0.88;font-size:0.95rem;line-height:1.5;}}
@@ -55,7 +59,7 @@ a{{color:var(--p2);text-decoration:none;}}a:hover{{text-decoration:underline;}}
 .hstat-lbl{{font-size:0.78rem;opacity:0.75;text-transform:uppercase;letter-spacing:0.06em;}}
 .period-badge{{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.30);border-radius:24px;padding:8px 20px;font-size:0.88rem;color:{c['period_color']};font-weight:600;}}
 .container{{max-width:1100px;margin:0 auto;padding:0 20px;}}
-.section{{padding:48px 0 16px;}}
+.section{{padding:40px 0 8px;}}
 .section-title{{font-size:1.35rem;font-weight:700;color:var(--p);border-left:4px solid var(--a);padding-left:14px;margin-bottom:24px;}}
 .kpi-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:24px;}}
 .kpi-card{{background:var(--white);border-radius:14px;padding:20px 18px;border:1px solid var(--border);box-shadow:0 2px 8px rgba(0,0,0,0.06);position:relative;overflow:hidden;transition:transform .15s;}}
@@ -88,6 +92,16 @@ tbody td{{padding:12px 16px;color:#374151;white-space:nowrap;}}
 .analysis-list{{list-style:none;}}
 .analysis-list li{{padding:10px 0;border-bottom:1px solid var(--border);font-size:0.88rem;color:#374151;display:flex;gap:10px;align-items:flex-start;line-height:1.5;}}
 .analysis-list li:last-child{{border-bottom:none;}}.analysis-list li .bullet{{flex-shrink:0;}}
+.rec-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-bottom:24px;}}
+.rec-card{{background:var(--white);border-radius:12px;padding:18px 20px;border:1px solid var(--border);border-left:4px solid var(--a);display:flex;gap:14px;align-items:flex-start;}}
+.rec-card .rec-icon{{font-size:1.5rem;flex-shrink:0;margin-top:2px;}}
+.rec-card .rec-body h5{{font-size:0.88rem;font-weight:700;color:var(--p);margin-bottom:4px;}}
+.rec-card .rec-body p{{font-size:0.83rem;color:#374151;line-height:1.55;}}
+.rec-grid.stories .rec-card{{border-left-color:var(--p2);}}
+.audience-note{{background:#f8fafc;border:1px dashed var(--border);border-radius:10px;padding:12px 18px;margin-bottom:20px;font-size:0.83rem;color:var(--muted);}}
+.no-data-msg{{text-align:center;padding:40px;color:var(--muted);font-size:0.9rem;}}
+.format-badge{{display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.78rem;font-weight:600;background:var(--al);color:var(--ad);}}
+.rank-num{{font-weight:700;color:var(--p);font-size:1rem;}}
 .site-footer{{background:var(--p);color:rgba(255,255,255,0.75);text-align:center;padding:28px 24px;font-size:0.85rem;margin-top:48px;}}
 .site-footer strong{{color:var(--a);}}
 @media(max-width:768px){{.chart-row.cols-2,.chart-row.cols-3,.analysis-grid{{grid-template-columns:1fr;}}}}
@@ -128,17 +142,19 @@ def _kpis(d: dict, report_type: str) -> str:
             f'<div class="kpi-card"><span class="kpi-icon">📡</span><div class="kpi-val">{_br(d["total_reach"])}</div><div class="kpi-label">Alcance Total</div><span class="kpi-badge badge-blue">org + pago</span></div>',
             f'<div class="kpi-card"><span class="kpi-icon">🌱</span><div class="kpi-val">{_br(d["total_organic"])}</div><div class="kpi-label">Alcance Orgânico</div><span class="kpi-badge badge-orange">{d["organic_pct"]}% do total</span></div>',
             f'<div class="kpi-card"><span class="kpi-icon">💬</span><div class="kpi-val">{_br(d["total_interactions"])}</div><div class="kpi-label">Interações</div><span class="kpi-badge badge-blue">likes+com+saves+shares</span></div>',
-            f'<div class="kpi-card"><span class="kpi-icon">📊</span><div class="kpi-val">{_br(d["org_eng_rate"], 2)}%</div><div class="kpi-label">Eng. Orgânico</div><span class="kpi-badge badge-green">🔥 vs benchmark 3-5%</span></div>',
-            f'<div class="kpi-card"><span class="kpi-icon">❤️</span><div class="kpi-val">{_br(d["total_likes"])}</div><div class="kpi-label">Curtidas</div><span class="kpi-badge badge-blue">likes</span></div>',
-            f'<div class="kpi-card"><span class="kpi-icon">🔖</span><div class="kpi-val">{_br(d["total_saves"])}</div><div class="kpi-label">Salvamentos</div><span class="kpi-badge badge-gold">saves</span></div>',
+            f'<div class="kpi-card"><span class="kpi-icon">📊</span><div class="kpi-val">{_br(d["org_eng_rate"], 2)}%</div><div class="kpi-label">Eng. Orgânico</div><span class="kpi-badge badge-green">benchmark 3–5%</span></div>',
+            f'<div class="kpi-card"><span class="kpi-icon">❤️</span><div class="kpi-val">{_br(d["total_likes"])}</div><div class="kpi-label">Curtidas</div></div>',
+            f'<div class="kpi-card"><span class="kpi-icon">💾</span><div class="kpi-val">{_br(d["total_saves"])}</div><div class="kpi-label">Salvamentos</div><span class="kpi-badge badge-gold">saves</span></div>',
+            f'<div class="kpi-card"><span class="kpi-icon">🔁</span><div class="kpi-val">{_br(d["total_shares"])}</div><div class="kpi-label">Compartilhamentos</div></div>',
+            f'<div class="kpi-card"><span class="kpi-icon">💬</span><div class="kpi-val">{_br(d["total_comments"])}</div><div class="kpi-label">Comentários</div></div>',
             f'<div class="kpi-card"><span class="kpi-icon">📈</span><div class="kpi-val">+{_br(d["followers_gained"])}</div><div class="kpi-label">Seguidores Ganhos</div><span class="kpi-badge badge-green">🌱 {_br(d["followers_organic_est"])} org · 💰 {_br(d["followers_paid_est"])} pago</span></div>',
         ]
     if report_type != "Só Orgânico":
         cards += [
             f'<div class="kpi-card"><span class="kpi-icon">💰</span><div class="kpi-val">R${_br(d["total_spend"], 2)}</div><div class="kpi-label">Investimento Ads</div><span class="kpi-badge badge-gold">Meta Ads</span></div>',
             f'<div class="kpi-card"><span class="kpi-icon">🎯</span><div class="kpi-val">{_br(d["total_paid_reach"])}</div><div class="kpi-label">Alcance Pago</div><span class="kpi-badge badge-blue">{d["paid_pct"]}% do total</span></div>',
-            f'<div class="kpi-card"><span class="kpi-icon">👆</span><div class="kpi-val">{_br(d["total_clicks"])}</div><div class="kpi-label">Cliques (Ads)</div><span class="kpi-badge badge-blue">total campanhas</span></div>',
-            f'<div class="kpi-card"><span class="kpi-icon">👤</span><div class="kpi-val">R${_br(d["cost_per_follower"], 2)}</div><div class="kpi-label">Custo/Seguidor est.</div><span class="kpi-badge badge-orange">meta: &lt;R$2,00</span></div>',
+            f'<div class="kpi-card"><span class="kpi-icon">👆</span><div class="kpi-val">{_br(d["total_clicks"])}</div><div class="kpi-label">Cliques (Ads)</div></div>',
+            f'<div class="kpi-card"><span class="kpi-icon">👤</span><div class="kpi-val">R${_br(d["cost_per_follower"], 2)}</div><div class="kpi-label">Custo/Seguidor</div><span class="kpi-badge badge-orange">meta: &lt;R$2,00</span></div>',
         ]
     return f'<div class="kpi-grid">{"".join(cards)}</div>'
 
@@ -146,13 +162,13 @@ def _kpis(d: dict, report_type: str) -> str:
 def _obs_card(d: dict, report_type: str) -> str:
     organic_note = (
         f"O alcance orgânico de <strong>{_br(d['total_organic'])} pessoas ({d['organic_pct']}%)</strong> "
-        f"com engajamento orgânico de <strong>{_br(d['org_eng_rate'],2)}%</strong> — "
-        f"muito acima do benchmark de 3–5%."
+        f"com engajamento orgânico de <strong>{_br(d['org_eng_rate'],2)}%</strong> "
+        f"({'acima' if d['org_eng_rate'] > 5 else 'dentro'} do benchmark de 3–5%)."
     )
     paid_note = (
         f"O investimento de <strong>R${_br(d['total_spend'],2)}</strong> gerou <strong>"
         f"{_br(d['total_paid_reach'])} pessoas alcançadas ({d['paid_pct']}% do total)</strong> "
-        f"com <strong>{_br(d['total_clicks'])} cliques</strong> distribuídos em "
+        f"com <strong>{_br(d['total_clicks'])} cliques</strong> em "
         f"{len(d['campaigns'])} campanha(s)."
     )
     if report_type == "Só Orgânico":
@@ -168,21 +184,23 @@ def _daily_charts(d: dict, report_type: str, uid: str) -> str:
     if report_type == "Só Pago":
         return ""
 
-    L  = _js(d["labels"])
-    Ro = _js(d["daily_organic_reach"])
-    Rp = _js(d["daily_paid_reach"])
-    Li = _js(d["daily_likes"])
-    Co = _js(d["daily_comments"])
-    Sa = _js(d["daily_saves"])
-    Sh = _js(d["daily_shares"])
+    L   = _js(d["labels"])
+    Ro  = _js(d["daily_organic_reach"])
+    Rp  = _js(d["daily_paid_reach"])
+    Li  = _js(d["daily_likes"])
+    Co  = _js(d["daily_comments"])
+    Sa  = _js(d["daily_saves"])
+    Sh  = _js(d["daily_shares"])
+    Fc  = _js(d["daily_follower_change"])
 
-    chart1_id = "cDailyR_" + uid
-    chart2_id = "cDailyI_" + uid
+    c1 = "cDailyR_"  + uid
+    c2 = "cDailyI_"  + uid
+    c3 = "cDailyFc_" + uid
 
-    # Build JS with % formatting so { } chars don't need escaping
     js = (
         "(function(){\n"
-        "var L=%s,Ro=%s,Rp=%s,Li=%s,Co=%s,Sa=%s,Sh=%s;\n"
+        "var L=%s,Ro=%s,Rp=%s,Li=%s,Co=%s,Sa=%s,Sh=%s,Fc=%s;\n"
+        # Chart 1 — Alcance
         "new Chart(document.getElementById('%s'),{type:'bar',data:{labels:L,datasets:["
         "{label:'Orgânico',data:Ro,backgroundColor:'rgba(26,90,154,0.65)',stack:'s'},"
         "{label:'Pago',data:Rp,backgroundColor:'rgba(248,185,64,0.75)',stack:'s'}"
@@ -190,6 +208,7 @@ def _daily_charts(d: dict, report_type: str, uid: str) -> str:
         "plugins:{legend:{position:'top'}},"
         "scales:{x:{stacked:true,ticks:{maxRotation:45,font:{size:10}},grid:{display:false}},"
         "y:{stacked:true,beginAtZero:true}}}});\n"
+        # Chart 2 — Interações
         "new Chart(document.getElementById('%s'),{type:'bar',data:{labels:L,datasets:["
         "{label:'Likes',data:Li,backgroundColor:'rgba(26,90,154,0.75)',stack:'s'},"
         "{label:'Comentários',data:Co,backgroundColor:'rgba(248,185,64,0.75)',stack:'s'},"
@@ -199,20 +218,305 @@ def _daily_charts(d: dict, report_type: str, uid: str) -> str:
         "plugins:{legend:{position:'top'}},"
         "scales:{x:{stacked:true,ticks:{maxRotation:45,font:{size:10}},grid:{display:false}},"
         "y:{stacked:true,beginAtZero:true}}}});\n"
+        # Chart 3 — Novos Seguidores
+        "new Chart(document.getElementById('%s'),{type:'bar',data:{labels:L,datasets:[{"
+        "label:'Novos Seguidores',data:Fc,"
+        "backgroundColor:Fc.map(function(v){return v>=0?'rgba(16,185,129,0.70)':'rgba(249,115,22,0.70)';})"
+        "}]},options:{responsive:true,maintainAspectRatio:false,"
+        "plugins:{legend:{display:false}},"
+        "scales:{x:{ticks:{maxRotation:45,font:{size:10}},grid:{display:false}},"
+        "y:{beginAtZero:true}}}});\n"
         "})();"
-    ) % (L, Ro, Rp, Li, Co, Sa, Sh, chart1_id, chart2_id)
+    ) % (L, Ro, Rp, Li, Co, Sa, Sh, Fc, c1, c2, c3)
 
     return (
         '\n<section class="section">'
-        '\n<h2 class="section-title">📅 Evolução Diária</h2>'
+        '\n<h2 class="section-title">📅 Evolução Diária — Views &amp; Alcance</h2>'
         '\n<div class="chart-row cols-1">'
-        '\n<div class="chart-card"><h4>Alcance Orgânico vs Pago por Dia</h4>'
-        f'\n<div style="position:relative;height:320px"><canvas id="{chart1_id}"></canvas></div></div>'
+        '\n<div class="chart-card"><h4>Visualizações e Alcance por Dia (Orgânico + Pago)</h4>'
+        f'\n<div style="position:relative;height:300px"><canvas id="{c1}"></canvas></div></div>'
         '\n</div>'
+        '\n<div class="chart-row cols-2">'
+        '\n<div class="chart-card"><h4>Interações Diárias por Tipo</h4>'
+        f'\n<div style="position:relative;height:260px"><canvas id="{c2}"></canvas></div></div>'
+        '\n<div class="chart-card"><h4>Novos Seguidores por Dia</h4>'
+        f'\n<div style="position:relative;height:260px"><canvas id="{c3}"></canvas></div>'
+        '\n<p style="font-size:0.75rem;color:#9ca3af;margin-top:8px;">* Variação diária de seguidores disponível apenas nos últimos 30 dias via Instagram Insights.</p>'
+        '\n</div>'
+        '\n</div>'
+        '\n</section>'
+        '\n<script>\n' + js + '\n</script>'
+    )
+
+
+def _audience_section(d: dict, uid: str) -> str:
+    aud = d.get("audience", {})
+    if not aud.get("has_data"):
+        return (
+            '\n<section class="section">'
+            '\n<h2 class="section-title">👥 Análise da Audiência</h2>'
+            '\n<div class="no-data-msg">📭 Dados de audiência não disponíveis para esta conta no momento.<br>'
+            '<small>A conta pode não ter dados demográficos suficientes ou permissão não concedida.</small></div>'
+            '\n</section>'
+        )
+
+    gp   = aud["gender_pct"]
+    note = (
+        '<div class="audience-note">ℹ️ <strong>Observação importante:</strong> '
+        'Os dados de audiência abaixo refletem o <strong>perfil atual dos seguidores da conta</strong> '
+        '(dados vitalícios). Eles não são específicos do período selecionado — representam quem '
+        'segue o perfil hoje.</div>'
+    )
+
+    # Gender: donut
+    gen_labels = _js(["Feminino", "Masculino", "Indefinido"])
+    gen_vals   = _js([gp.get("F", 0), gp.get("M", 0), gp.get("U", 0)])
+    gen_colors = _js(["rgba(233,96,178,0.8)", "rgba(26,90,154,0.8)", "rgba(156,163,175,0.7)"])
+
+    # Age: bar
+    age_labels = _js(aud["age_labels"])
+    age_pcts   = _js(aud["age_pcts"])
+
+    # Countries: horizontal bar
+    cty_labels = _js(aud["country_labels"])
+    cty_pcts   = _js(aud["country_pcts"])
+
+    cg = "cGender_"   + uid
+    ca = "cAge_"      + uid
+    cc = "cCountry_"  + uid
+
+    js = (
+        "(function(){\n"
+        "var GL=%s,GV=%s,GC=%s,AL=%s,AP=%s,CL=%s,CP=%s;\n"
+        # Gender donut
+        "new Chart(document.getElementById('%s'),{type:'doughnut',data:{labels:GL,datasets:[{"
+        "data:GV,backgroundColor:GC,borderWidth:2,borderColor:'#fff'"
+        "}]},options:{responsive:true,maintainAspectRatio:false,"
+        "plugins:{legend:{position:'right'},"
+        "tooltip:{callbacks:{label:function(ctx){return ctx.label+': '+ctx.parsed+'%%';}}}"
+        "}}});\n"
+        # Age bar
+        "new Chart(document.getElementById('%s'),{type:'bar',data:{labels:AL,datasets:[{"
+        "label:'%%',data:AP,"
+        "backgroundColor:'rgba(26,90,154,0.70)',borderRadius:6"
+        "}]},options:{responsive:true,maintainAspectRatio:false,"
+        "plugins:{legend:{display:false}},"
+        "scales:{x:{grid:{display:false}},"
+        "y:{beginAtZero:true,ticks:{callback:function(v){return v+'%%';}}}}}});\n"
+        # Countries horizontal bar
+        "new Chart(document.getElementById('%s'),{type:'bar',data:{labels:CL,datasets:[{"
+        "label:'%%',data:CP,"
+        "backgroundColor:'rgba(248,185,64,0.80)',borderRadius:6"
+        "}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,"
+        "plugins:{legend:{display:false}},"
+        "scales:{x:{beginAtZero:true,ticks:{callback:function(v){return v+'%%';}},"
+        "grid:{display:false}},"
+        "y:{grid:{display:false}}}}});\n"
+        "})();"
+    ) % (gen_labels, gen_vals, gen_colors, age_labels, age_pcts, cty_labels, cty_pcts, cg, ca, cc)
+
+    # Dominant age insight
+    dom_age  = aud.get("dominant_age", "—")
+    female   = gp.get("F", 0)
+    male_pct = gp.get("M", 0)
+    dom_gen  = "Feminino" if female >= male_pct else "Masculino"
+    dom_gen_pct = max(female, male_pct)
+
+    insight = (
+        f'<div class="obs-card" style="margin-top:16px;">'
+        f'<h3>🔍 Perfil da Audiência</h3>'
+        f'<p>O público predominante é <strong>{dom_gen} ({dom_gen_pct}%)</strong>, '
+        f'com maior concentração na faixa etária de <strong>{dom_age} anos</strong>. '
+        f'O país com maior participação é <strong>{aud["country_labels"][0] if aud["country_labels"] else "—"} '
+        f'({aud["country_pcts"][0] if aud["country_pcts"] else 0}%)</strong>. '
+        f'Use esses dados para calibrar a linguagem, referências culturais e horário das publicações.</p>'
+        f'</div>'
+    )
+
+    return (
+        '\n<section class="section">'
+        '\n<h2 class="section-title">👥 Análise da Audiência</h2>'
+        + note
+        + '\n<div class="chart-row cols-3">'
+        f'\n<div class="chart-card"><h4>Distribuição por Gênero</h4>'
+        f'<div style="position:relative;height:220px"><canvas id="{cg}"></canvas></div></div>'
+        f'\n<div class="chart-card"><h4>Faixa Etária dos Seguidores</h4>'
+        f'<div style="position:relative;height:220px"><canvas id="{ca}"></canvas></div></div>'
+        f'\n<div class="chart-card"><h4>Países de Origem</h4>'
+        f'<div style="position:relative;height:220px"><canvas id="{cc}"></canvas></div></div>'
+        '\n</div>'
+        + insight
+        + '\n</section>'
+        '\n<script>\n' + js + '\n</script>'
+    )
+
+
+def _content_type_section(d: dict, uid: str) -> str:
+    ct = d.get("content", {})
+    if not ct.get("has_data"):
+        return (
+            '\n<section class="section">'
+            '\n<h2 class="section-title">🎨 Performance por Tipo de Conteúdo</h2>'
+            '\n<div class="no-data-msg">📭 Nenhuma publicação encontrada no período selecionado.</div>'
+            '\n</section>'
+        )
+
+    formats = ct["formats"]
+    best    = ct.get("best_format", "—")
+
+    # Table rows
+    table_rows = ""
+    for f in formats:
+        icon = _format_icon(f["name"])
+        table_rows += (
+            f"<tr><td>{icon} <strong>{f['name']}</strong></td>"
+            f"<td>{f['count']}</td>"
+            f"<td>{_br(f['avg_reach'])}</td>"
+            f"<td>{_br(f['avg_interactions'])}</td>"
+            f"<td>{_br(f['avg_eng_rate'],2)}%</td>"
+            f"<td>{_br(f['avg_saves'])}</td></tr>"
+        )
+
+    # Bar chart — avg interactions per format
+    fmt_names  = _js([f["name"] for f in formats])
+    fmt_avgi   = _js([f["avg_interactions"] for f in formats])
+    fmt_avgr   = _js([f["avg_reach"] for f in formats])
+    fmt_counts = _js([f["count"] for f in formats])
+    fmt_colors = _js(["rgba(26,90,154,0.75)", "rgba(248,185,64,0.80)", "rgba(16,185,129,0.75)", "rgba(249,115,22,0.75)"])
+
+    # Donut — distribution
+    c_bar   = "cFmtBar_"   + uid
+    c_donut = "cFmtDonut_" + uid
+
+    js = (
+        "(function(){\n"
+        "var FN=%s,FI=%s,FR=%s,FK=%s,FC=%s;\n"
+        # Bar — avg interactions
+        "new Chart(document.getElementById('%s'),{type:'bar',data:{labels:FN,datasets:["
+        "{label:'Interações Médias',data:FI,backgroundColor:FC.slice(0,FN.length),borderRadius:8},"
+        "{label:'Alcance Médio',data:FR,backgroundColor:FC.slice(0,FN.length).map(function(c){return c.replace('0.75','0.25').replace('0.80','0.25');}),borderRadius:8}"
+        "]},options:{responsive:true,maintainAspectRatio:false,"
+        "plugins:{legend:{position:'top'}},"
+        "scales:{x:{grid:{display:false}},y:{beginAtZero:true}}}});\n"
+        # Donut — count distribution
+        "new Chart(document.getElementById('%s'),{type:'doughnut',data:{labels:FN,datasets:[{"
+        "data:FK,backgroundColor:FC.slice(0,FN.length),borderWidth:2,borderColor:'#fff'"
+        "}]},options:{responsive:true,maintainAspectRatio:false,"
+        "plugins:{legend:{position:'right'}}}});\n"
+        "})();"
+    ) % (fmt_names, fmt_avgi, fmt_avgr, fmt_counts, fmt_colors, c_bar, c_donut)
+
+    # Conclusion text
+    best_icon = _format_icon(best)
+    if formats:
+        best_eng  = formats[0]["avg_eng_rate"]
+        conclusion = (
+            f"O formato <strong>{best_icon} {best}</strong> apresentou o melhor desempenho médio "
+            f"com <strong>{_br(best_eng, 2)}% de engajamento</strong> por publicação. "
+        )
+        if len(formats) > 1:
+            worst = formats[-1]
+            conclusion += (
+                f"Já o formato <strong>{_format_icon(worst['name'])} {worst['name']}</strong> "
+                f"teve o menor engajamento médio ({_br(worst['avg_eng_rate'],2)}%) — "
+                f"considere revisar a frequência ou abordagem deste formato. "
+            )
+        conclusion += (
+            f"<strong>Recomendação:</strong> priorize {best} nas próximas semanas "
+            f"e teste variações de conteúdo para manter o algoritmo favorável."
+        )
+    else:
+        conclusion = "Dados insuficientes para conclusão automática."
+
+    return (
+        '\n<section class="section">'
+        '\n<h2 class="section-title">🎨 Performance por Tipo de Conteúdo</h2>'
+        '\n<div class="table-wrap"><table>'
+        '\n<thead><tr><th>Formato</th><th>Qtd. Posts</th><th>Alcance Médio</th>'
+        '<th>Interações Médias</th><th>Eng. Médio</th><th>Saves Médios</th></tr></thead>'
+        f'\n<tbody>{table_rows}</tbody>'
+        '\n</table></div>'
+        '\n<div class="chart-row cols-2">'
+        f'\n<div class="chart-card"><h4>Engajamento Médio por Formato</h4>'
+        f'<div style="position:relative;height:260px"><canvas id="{c_bar}"></canvas></div></div>'
+        f'\n<div class="chart-card"><h4>Distribuição de Posts por Formato</h4>'
+        f'<div style="position:relative;height:260px"><canvas id="{c_donut}"></canvas></div></div>'
+        '\n</div>'
+        f'\n<div class="obs-card"><h3>💡 Conclusão</h3><p>{conclusion}</p></div>'
+        '\n</section>'
+        '\n<script>\n' + js + '\n</script>'
+    )
+
+
+def _top_posts_section(d: dict, uid: str) -> str:
+    ct = d.get("content", {})
+    top10 = ct.get("top_posts", [])
+    if not top10:
+        return ""
+
+    # Table
+    table_rows = ""
+    for i, p in enumerate(top10, 1):
+        icon = _format_icon(p.get("format", "Foto"))
+        link = p.get("permalink", "")
+        date_str = p.get("date", "")
+        link_html = f'<a href="{link}" target="_blank">🔗</a>' if link else "—"
+        eng_rate  = round(p["total_interactions"] / p["reach"] * 100, 2) if p.get("reach") else 0
+        table_rows += (
+            f"<tr>"
+            f"<td><span class='rank-num'>#{i}</span></td>"
+            f"<td>{date_str}</td>"
+            f"<td>{icon} {p.get('format','—')}</td>"
+            f"<td>{_br(p.get('reach',0))}</td>"
+            f"<td>{_br(p.get('total_interactions',0))}</td>"
+            f"<td>{_br(p.get('likes',0))}</td>"
+            f"<td>{_br(p.get('comments',0))}</td>"
+            f"<td>{_br(p.get('saves',0))}</td>"
+            f"<td>{_br(eng_rate,2)}%</td>"
+            f"<td>{link_html}</td>"
+            f"</tr>"
+        )
+
+    # Scatter chart: reach vs interactions
+    scatter_data = _js([
+        {"x": p.get("reach", 0), "y": p.get("total_interactions", 0), "r": 8}
+        for p in top10
+    ])
+    scatter_labels = _js([f"#{i+1}" for i in range(len(top10))])
+    c_scatter = "cScatter_" + uid
+
+    js = (
+        "(function(){\n"
+        "var SD=%s,SL=%s;\n"
+        "new Chart(document.getElementById('%s'),{type:'bubble',data:{labels:SL,datasets:[{"
+        "label:'Posts',data:SD,"
+        "backgroundColor:'rgba(26,90,154,0.65)',"
+        "borderColor:'rgba(26,90,154,1)',"
+        "borderWidth:1"
+        "}]},options:{responsive:true,maintainAspectRatio:false,"
+        "plugins:{legend:{display:false},"
+        "tooltip:{callbacks:{label:function(ctx){"
+        "return 'Alcance: '+ctx.parsed.x+' | Interações: '+ctx.parsed.y;}}}},"
+        "scales:{"
+        "x:{title:{display:true,text:'Alcance'},beginAtZero:true,grid:{display:false}},"
+        "y:{title:{display:true,text:'Interações'},beginAtZero:true}"
+        "}}});\n"
+        "})();"
+    ) % (scatter_data, scatter_labels, c_scatter)
+
+    return (
+        '\n<section class="section">'
+        '\n<h2 class="section-title">🏆 Ranking dos Melhores Posts</h2>'
+        '\n<div class="table-wrap"><table>'
+        '\n<thead><tr><th>#</th><th>Data</th><th>Formato</th><th>Alcance</th>'
+        '<th>Interações</th><th>Likes</th><th>Comentários</th><th>Saves</th><th>Eng.</th><th>Link</th></tr></thead>'
+        f'\n<tbody>{table_rows}</tbody>'
+        '\n</table></div>'
         '\n<div class="chart-row cols-1">'
-        '\n<div class="chart-card"><h4>Interações Diárias (Likes · Comentários · Saves · Shares)</h4>'
-        f'\n<div style="position:relative;height:260px"><canvas id="{chart2_id}"></canvas></div></div>'
-        '\n</div>'
+        f'\n<div class="chart-card"><h4>Comparativo de Performance: Alcance vs Engajamento</h4>'
+        f'<div style="position:relative;height:300px"><canvas id="{c_scatter}"></canvas></div>'
+        '<p style="font-size:0.78rem;color:#9ca3af;margin-top:8px;">Cada bolha representa um dos top posts. Quanto mais à direita = maior alcance; quanto mais acima = mais interações.</p>'
+        '\n</div></div>'
         '\n</section>'
         '\n<script>\n' + js + '\n</script>'
     )
@@ -223,7 +527,6 @@ def _paid_section(d: dict, report_type: str, uid: str) -> str:
         return ""
 
     camps = d["campaigns"]
-
     rows_html = ""
     for c in camps:
         rows_html += (
@@ -233,7 +536,6 @@ def _paid_section(d: dict, report_type: str, uid: str) -> str:
             f"<td>R${_br(c['cpm'],2)}</td><td>R${_br(c['cpc'],2)}</td>"
             f"<td>{_br(c['ctr'],2)}%</td><td>{_status_pill(c['status'])}</td></tr>"
         )
-
     rows_html += (
         '<tr style="background:var(--pl);font-weight:700;">'
         f'<td><strong>TOTAL</strong></td><td>—</td>'
@@ -246,15 +548,13 @@ def _paid_section(d: dict, report_type: str, uid: str) -> str:
         '<td>—</td><td>—</td></tr>'
     )
 
-    chart_split_id = "cPaidSplit_" + uid
-    chart_spend_id = "cSpend_" + uid
-
+    c_split = "cPaidSplit_" + uid
+    c_spend = "cSpend_"     + uid
     L  = _js(d["labels"])
     Ro = _js(d["daily_organic_reach"])
     Rp = _js(d["daily_paid_reach"])
     Sp = _js(d["daily_spend"])
 
-    # Build JS with % formatting so { } chars don't need escaping
     js = (
         "(function(){\n"
         "var L=%s,Ro=%s,Rp=%s,Sp=%s;\n"
@@ -275,7 +575,7 @@ def _paid_section(d: dict, report_type: str, uid: str) -> str:
         "scales:{x:{ticks:{maxRotation:45,font:{size:10}},grid:{display:false}},"
         "y:{beginAtZero:true,ticks:{callback:function(v){return'R$'+v.toFixed(0);}}}}}});\n"
         "})();"
-    ) % (L, Ro, Rp, Sp, chart_split_id, chart_spend_id)
+    ) % (L, Ro, Rp, Sp, c_split, c_spend)
 
     mini_kpis = (
         f'<div class="mini-kpi"><div class="val">R${_br(d["total_spend"],2)}</div><div class="lbl">Investido</div></div>'
@@ -297,9 +597,9 @@ def _paid_section(d: dict, report_type: str, uid: str) -> str:
         '\n</table></div>'
         '\n<div class="chart-row cols-2">'
         '\n<div class="chart-card"><h4>Alcance Orgânico vs Pago por Dia</h4>'
-        f'\n<div style="position:relative;height:260px"><canvas id="{chart_split_id}"></canvas></div></div>'
+        f'<div style="position:relative;height:260px"><canvas id="{c_split}"></canvas></div></div>'
         '\n<div class="chart-card"><h4>Gasto Diário em Anúncios (R$)</h4>'
-        f'\n<div style="position:relative;height:260px"><canvas id="{chart_spend_id}"></canvas></div></div>'
+        f'<div style="position:relative;height:260px"><canvas id="{c_spend}"></canvas></div></div>'
         '\n</div>'
         '\n</section>'
         '\n<script>\n' + js + '\n</script>'
@@ -307,7 +607,10 @@ def _paid_section(d: dict, report_type: str, uid: str) -> str:
 
 
 def _strategic(d: dict, report_type: str) -> str:
-    strengths = []
+    ct       = d.get("content", {})
+    aud      = d.get("audience", {})
+    best_fmt = ct.get("best_format", "Reel")
+    strengths  = []
     attentions = []
 
     if report_type != "Só Pago":
@@ -317,41 +620,89 @@ def _strategic(d: dict, report_type: str) -> str:
 
         saves = d["total_saves"]
         total_int = d["total_interactions"]
-        save_pct = round(saves / total_int * 100, 1) if total_int else 0
-        if save_pct >= 10:
-            strengths.append(("📌", f"<strong>{_br(saves)} salvamentos</strong> ({save_pct}% das interações) — audiência usa o conteúdo como referência e material de estudo."))
+        save_pct  = round(saves / total_int * 100, 1) if total_int else 0
+        if save_pct >= 8:
+            strengths.append(("📌", f"<strong>{_br(saves)} salvamentos</strong> ({save_pct}% das interações) — audiência utiliza o conteúdo como referência e material de estudo."))
+        else:
+            attentions.append(("📎", f"Taxa de saves de <strong>{save_pct}%</strong> das interações — abaixo do ideal (8–15%). Criar mais conteúdo educativo e de referência pode aumentar os saves."))
 
         if d["organic_pct"] >= 40:
             strengths.append(("🌱", f"Alcance orgânico de <strong>{d['organic_pct']}%</strong> do total — boa distribuição natural do conteúdo pelo algoritmo."))
         else:
-            attentions.append(("📉", f"Alcance orgânico de apenas <strong>{d['organic_pct']}%</strong> do total — dependência elevada do tráfego pago para visibilidade."))
+            attentions.append(("📉", f"Alcance orgânico de apenas <strong>{d['organic_pct']}%</strong> do total — alta dependência do tráfego pago para visibilidade."))
 
         shares = d["total_shares"]
-        if shares > 200:
+        if shares > 100:
             strengths.append(("🔁", f"<strong>{_br(shares)} compartilhamentos</strong> no período — conteúdo com forte apelo de disseminação orgânica."))
+        else:
+            attentions.append(("📤", f"Apenas <strong>{_br(shares)} compartilhamentos</strong> — explorar conteúdo que instigue o share: listas, comparativos, frases de impacto."))
+
+        comments = d["total_comments"]
+        if comments > 50:
+            strengths.append(("💬", f"<strong>{_br(comments)} comentários</strong> gerados — conteúdo com bom poder de conversação e conexão com o público."))
+
+        if best_fmt:
+            best_fmts = ct.get("formats", [])
+            if best_fmts:
+                bf = best_fmts[0]
+                strengths.append(("🎯", f"Formato <strong>{_format_icon(best_fmt)} {best_fmt}</strong> com melhor desempenho: média de {_br(bf['avg_interactions'])} interações e {_br(bf['avg_eng_rate'],2)}% de engajamento por post."))
+
+        zero_days = sum(1 for v in d["daily_organic_reach"] if v == 0)
+        if zero_days > 5:
+            attentions.append(("🗓️", f"<strong>{zero_days} dias sem alcance orgânico</strong> registrado — gaps de publicação ou períodos sem posts prejudicam o momentum do algoritmo."))
+        elif zero_days <= 2:
+            strengths.append(("📅", f"Consistência alta: apenas <strong>{zero_days} dias</strong> sem alcance registrado no período."))
+
+        fg = d["followers_gained"]
+        if fg > 0:
+            strengths.append(("📈", f"<strong>+{_br(fg)} seguidores</strong> conquistados no período ({_br(d['followers_organic_est'])} orgânicos, {_br(d['followers_paid_est'])} via anúncios)."))
+        else:
+            attentions.append(("👤", "Nenhum crescimento de seguidores registrado no período — revisar estratégia de aquisição e chamadas para seguir o perfil."))
 
     if report_type != "Só Orgânico":
         for camp in d["campaigns"]:
             if camp["status"] == "best":
                 strengths.append(("🏆", f"Campanha <strong>\"{camp['name']}\"</strong> com CTR {_br(camp['ctr'],2)}% e CPC R${_br(camp['cpc'],2)} — melhor desempenho do período."))
             elif camp["status"] == "warning":
-                attentions.append(("⚠️", f"Campanha <strong>\"{camp['name']}\"</strong> com CPM R${_br(camp['cpm'],2)} — custo elevado, revisar criativo ou segmentação."))
-
+                attentions.append(("⚠️", f"Campanha <strong>\"{camp['name']}\"</strong> com CPM R${_br(camp['cpm'],2)} e CTR {_br(camp['ctr'],2)}% — custo elevado, revisar criativo ou segmentação."))
         cpf = d["cost_per_follower"]
-        if cpf <= 2.0:
+        if cpf > 0 and cpf <= 2.0:
             strengths.append(("💸", f"Custo estimado por seguidor de <strong>R${_br(cpf,2)}</strong> — dentro da meta de R$2,00."))
-        else:
+        elif cpf > 2.0:
             attentions.append(("💰", f"Custo estimado por seguidor de <strong>R${_br(cpf,2)}</strong> — acima da meta de R$2,00; otimizar campanhas de tráfego."))
 
-    if report_type != "Só Pago":
-        zero_days = sum(1 for v in d["daily_organic_reach"] if v == 0)
-        if zero_days > 3:
-            attentions.append(("🗓️", f"<strong>{zero_days} dias sem alcance orgânico</strong> no período — gaps de publicação prejudicam o momentum do algoritmo."))
+    # Audience-based insights
+    if aud.get("has_data"):
+        dom_age = aud.get("dominant_age", "")
+        if dom_age:
+            strengths.append(("👥", f"Audiência bem definida: faixa etária dominante de <strong>{dom_age} anos</strong> — facilita a criação de conteúdo direcionado."))
+        if aud["country_labels"] and aud["country_labels"][0] == "Brasil":
+            pct_br = aud["country_pcts"][0] if aud["country_pcts"] else 0
+            if pct_br >= 80:
+                strengths.append(("🇧🇷", f"<strong>{pct_br}% da audiência é brasileira</strong> — conteúdo em português, referências nacionais e datas comemorativas do Brasil têm alto potencial."))
 
-    if not strengths:
-        strengths.append(("✅", "Dados insuficientes para análise de pontos fortes no período selecionado."))
-    if not attentions:
-        attentions.append(("💡", "Nenhum ponto crítico identificado neste período — manter a estratégia atual."))
+    # Ensure minimum 4 of each
+    generic_strengths = [
+        ("✅", "Presença ativa no período com publicações e interações registradas."),
+        ("🌐", "Perfil com bio otimizada e identidade visual consistente contribuindo para conversão de visitantes em seguidores."),
+        ("📲", "Estratégia multicanal com conteúdo orgânico + tráfego pago complementares."),
+        ("🎓", "Nicho bem definido garante audiência qualificada e menor custo de aquisição em anúncios."),
+    ]
+    generic_attentions = [
+        ("📊", "Monitorar a taxa de engajamento semanalmente para identificar quedas precoces e ajustar o calendário editorial."),
+        ("🕐", "Testar horários de publicação variados para identificar o melhor momento de entrega na timeline da audiência."),
+        ("🔄", "Diversificar formatos de conteúdo para não depender de apenas um tipo que pode sofrer mudança no algoritmo."),
+        ("📣", "Implementar chamadas para ação (CTAs) claras em todas as publicações para estimular saves, comentários e compartilhamentos."),
+    ]
+
+    gi = 0
+    while len(strengths) < 4 and gi < len(generic_strengths):
+        strengths.append(generic_strengths[gi])
+        gi += 1
+    ai = 0
+    while len(attentions) < 4 and ai < len(generic_attentions):
+        attentions.append(generic_attentions[ai])
+        ai += 1
 
     str_items = "".join(f'<li><span class="bullet">{e}</span><span>{t}</span></li>' for e, t in strengths)
     att_items = "".join(f'<li><span class="bullet">{e}</span><span>{t}</span></li>' for e, t in attentions)
@@ -372,6 +723,142 @@ def _strategic(d: dict, report_type: str) -> str:
 </section>"""
 
 
+def _recommendations(d: dict, report_type: str) -> str:
+    ct       = d.get("content", {})
+    aud      = d.get("audience", {})
+    best_fmt = ct.get("best_format") or "Reel"
+    dom_age  = aud.get("dominant_age", "25–34")
+    eng      = d["org_eng_rate"]
+    saves    = d["total_saves"]
+    total_int = d["total_interactions"] or 1
+    save_pct  = round(saves / total_int * 100, 1)
+
+    # ── Feed recommendations (≥8) ─────────────────────────────────────────────
+    feed_recs = [
+        {
+            "icon": "🎬",
+            "title": f"Priorize {best_fmt}s no calendário editorial",
+            "body": f"O formato {best_fmt} foi o que gerou maior engajamento médio no período. Mantenha pelo menos 3 {best_fmt}s por semana para aproveitar o favorecimento do algoritmo.",
+        },
+        {
+            "icon": "📌",
+            "title": "Crie mais conteúdo para salvar",
+            "body": f"Sua taxa de saves está em {save_pct}% das interações. Tutoriais em carrossel, listas de referência, checklists e resumos práticos são os formatos com maior taxa de salvamento.",
+        },
+        {
+            "icon": "🕐",
+            "title": "Publique com consistência diária",
+            "body": "O algoritmo do Instagram favorece contas que publicam com regularidade. Idealmente 1 post/dia no feed, com intervalo mínimo de 12h entre publicações para não competir entre si.",
+        },
+        {
+            "icon": "💬",
+            "title": "Estimule a conversa nos primeiros 30 minutos",
+            "body": "O Instagram mede o engajamento nas primeiras horas após a publicação. Responda todos os comentários rapidamente e faça uma pergunta no final de cada legenda para incentivar respostas.",
+        },
+        {
+            "icon": "🔁",
+            "title": "Crie conteúdo que instigue compartilhamentos",
+            "body": "Posts com dados surpreendentes, frases de impacto, comparativos ou provocações inteligentes relacionadas ao nicho tendem a ser compartilhados espontaneamente. Meta: 10+ shares por post.",
+        },
+        {
+            "icon": "🎯",
+            "title": f"Fale diretamente com quem tem {dom_age} anos",
+            "body": f"Sua faixa etária dominante é {dom_age} anos. Use referências culturais, linguagem e problemas específicos desta faixa. Quanto mais específico, maior o engajamento.",
+        },
+        {
+            "icon": "📊",
+            "title": "Analise os 3 melhores posts e replique a fórmula",
+            "body": "Observe o que os top posts têm em comum: tema, tom, formato, horário ou CTA. Crie variações do mesmo padrão — não reinvente sempre, refine o que já funciona.",
+        },
+        {
+            "icon": "🔎",
+            "title": "Use palavras-chave nas legendas (SEO no Instagram)",
+            "body": "O Instagram usa processamento de linguagem natural para indexar posts. Inclua palavras-chave do seu nicho na primeira linha da legenda para aparecer nas buscas do app.",
+        },
+        {
+            "icon": "📅",
+            "title": "Crie séries e conteúdo temático semanal",
+            "body": "Séries recorrentes (ex: 'Dica de segunda', 'Revisão de domingo') criam expectativa no público e aumentam o retorno de visitas ao perfil — fator valorizado pelo algoritmo.",
+        },
+        {
+            "icon": "🤝",
+            "title": "Colabore com outros criadores do nicho",
+            "body": "Collabs e reposts entre perfis do mesmo nicho expõem sua conta para audiências qualificadas já interessadas no tema. Uma collab bem feita pode superar o alcance de 10 posts comuns.",
+        },
+    ]
+
+    # ── Stories recommendations ───────────────────────────────────────────────
+    stories_recs = [
+        {
+            "icon": "📣",
+            "title": "Use stories para anunciar novos posts do feed",
+            "body": "Ao publicar no feed, imediatamente compartilhe o post nos stories com um CTA: 'Vi que você pode ter perdido esse…' ou 'Esse post vai te ajudar muito, salva lá!'. Isso aumenta alcance e saves.",
+        },
+        {
+            "icon": "🗳️",
+            "title": "Enquetes para validar tema dos próximos posts",
+            "body": "Use a figurinha de enquete para perguntar o que o público quer ver no feed. Além de aumentar o engajamento no story, você garante que o próximo post já tem demanda confirmada.",
+        },
+        {
+            "icon": "🎥",
+            "title": "Bastidores do conteúdo criam conexão",
+            "body": "Mostre nos stories o processo de criação dos posts do feed: pesquisa, gravação, edição. Isso humaniza a conta, gera identificação e aumenta o tempo de visualização dos stories.",
+        },
+        {
+            "icon": "⏱️",
+            "title": "Reforce posts de alto alcance nos stories",
+            "body": "Quando um post tiver desempenho acima da média, reposte nos stories entre 24–48h depois com um novo ângulo. 'Esse post está bombando — você já viu?' aumenta saves de quem não interagiu antes.",
+        },
+        {
+            "icon": "📎",
+            "title": "Use o sticker de link para posts com mais de 10k",
+            "body": "Adicione sticker de link nos stories direcionando para os posts ou para uma página de captura. Stories com link têm swipe-up behavior que pode direcionar tráfego qualificado.",
+        },
+        {
+            "icon": "🧠",
+            "title": "Quiz nos stories reforça o conteúdo educativo do feed",
+            "body": "Após publicar um post educativo no feed, crie um quiz nos stories baseado no conteúdo do post. Isso reforça o aprendizado, aumenta o retorno de quem salvou o post e mede absorção da audiência.",
+        },
+        {
+            "icon": "🌟",
+            "title": "Destaque os stories mais estratégicos",
+            "body": "Crie capas padronizadas para os destaques (Dicas, Tutoriais, Resultado, Sobre) e salve stories que respondam dúvidas frequentes. O destaque funciona como um mini-site permanente do perfil.",
+        },
+        {
+            "icon": "📆",
+            "title": "Crie uma rotina semanal de stories",
+            "body": "Seguidores que assistem stories diariamente têm 3x mais chance de comprar do criador. Defina um calendário: segunda = bastidores, quarta = dica rápida, sexta = enquete do próximo post.",
+        },
+    ]
+
+    def _rec_card(r, cls=""):
+        return (
+            f'<div class="rec-card {cls}">'
+            f'<div class="rec-icon">{r["icon"]}</div>'
+            f'<div class="rec-body"><h5>{r["title"]}</h5><p>{r["body"]}</p></div>'
+            f'</div>'
+        )
+
+    feed_html    = "".join(_rec_card(r) for r in feed_recs)
+    stories_html = "".join(_rec_card(r, "stories") for r in stories_recs)
+
+    return f"""
+<section class="section">
+<h2 class="section-title">💡 Recomendações Estratégicas para o Feed</h2>
+<div class="rec-grid">
+{feed_html}
+</div>
+</section>
+
+<section class="section">
+<h2 class="section-title">📖 Recomendações Estratégicas para Stories</h2>
+<p style="color:#6b7280;font-size:0.9rem;margin-bottom:20px;">Como usar os stories para ampliar o alcance e o engajamento do feed:</p>
+<div class="rec-grid stories">
+{stories_html}
+</div>
+</section>"""
+
+
 def _footer(profile: dict, d: dict) -> str:
     return (
         '<footer class="site-footer">'
@@ -386,7 +873,7 @@ def _footer(profile: dict, d: dict) -> str:
 def generate(profile: dict, data: dict, report_type: str = "Geral") -> str:
     import time
     uid = str(int(time.time() * 1000))[-6:]
-    c = profile["colors"]
+    c   = profile["colors"]
 
     parts = [
         "<!DOCTYPE html><html lang='pt-BR'><head>",
@@ -397,24 +884,41 @@ def generate(profile: dict, data: dict, report_type: str = "Geral") -> str:
         "</head><body>",
         _header(profile, data),
         "<div class='container'>",
+
+        # 1. Métricas do período
         "<section class='section'>",
         "<h2 class='section-title'>📈 Métricas do Período</h2>",
         _kpis(data, report_type),
         "</section>",
+
+        # 2. Observação
         _obs_card(data, report_type),
-    ]
 
-    if report_type != "Só Pago":
-        parts.append(_daily_charts(data, report_type, uid))
+        # 3. Evolução diária (com followers chart)
+        _daily_charts(data, report_type, uid),
 
-    if report_type != "Só Orgânico":
-        parts.append(_paid_section(data, report_type, uid))
+        # 4. Análise da audiência
+        _audience_section(data, uid) if report_type != "Só Pago" else "",
 
-    parts += [
+        # 5. Performance por tipo de conteúdo
+        _content_type_section(data, uid) if report_type != "Só Pago" else "",
+
+        # 6. Ranking dos melhores posts
+        _top_posts_section(data, uid) if report_type != "Só Pago" else "",
+
+        # 7. Tráfego pago
+        _paid_section(data, report_type, uid),
+
+        # 8. Análise estratégica
         _strategic(data, report_type),
+
+        # 9. Recomendações feed + stories
+        _recommendations(data, report_type),
+
         "</div>",
         _footer(profile, data),
-        "<script>Chart.defaults.font.family=\"'Segoe UI',system-ui,sans-serif\";Chart.defaults.font.size=11;Chart.defaults.color='#6b7280';</script>",
+        "<script>Chart.defaults.font.family=\"'Segoe UI',system-ui,sans-serif\";"
+        "Chart.defaults.font.size=11;Chart.defaults.color='#6b7280';</script>",
         "</body></html>",
     ]
 
