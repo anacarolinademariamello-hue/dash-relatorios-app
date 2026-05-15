@@ -125,9 +125,10 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
     avg_cpm = round(total_spend / total_impressions * 1000, 2) if total_impressions else 0
     avg_cpc = round(total_spend / total_clicks, 2) if total_clicks else 0
 
-    followers = int(profile_info.get("followers_count") or 0)
-    following = int(profile_info.get("follows_count") or 0)
-    media     = int(profile_info.get("media_count") or 0)
+    followers   = int(profile_info.get("followers_count") or 0)
+    following   = int(profile_info.get("follows_count") or 0)
+    media       = int(profile_info.get("media_count") or 0)
+    picture_url = profile_info.get("profile_picture_url", "")
 
     # Followers gained in period (from daily follower_count metric)
     followers_gained = sum(daily_follower_change)
@@ -162,6 +163,7 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
         "followers": followers,
         "following": following,
         "media": media,
+        "picture_url": picture_url,
         "followers_gained": followers_gained,
         "followers_organic_est": followers_organic_est,
         "followers_paid_est": followers_paid_est,

@@ -120,17 +120,18 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
 
 
 def fetch_instagram_profile(profile: dict) -> dict:
-    """Followers / following / media count."""
+    """Followers / following / media count + profile picture URL."""
     ig_id = profile["instagram_id"]
     token = _token()
     data = _get(f"{GRAPH}/{ig_id}", {
-        "fields":       "followers_count,follows_count,media_count,username",
+        "fields":       "followers_count,follows_count,media_count,username,profile_picture_url",
         "access_token": token,
     })
     return {
-        "followers_count": data.get("followers_count", 0),
-        "follows_count":   data.get("follows_count", 0),
-        "media_count":     data.get("media_count", 0),
+        "followers_count":       data.get("followers_count", 0),
+        "follows_count":         data.get("follows_count", 0),
+        "media_count":           data.get("media_count", 0),
+        "profile_picture_url":   data.get("profile_picture_url", ""),
     }
 
 

@@ -98,10 +98,15 @@ tbody td{{padding:12px 16px;color:#374151;white-space:nowrap;}}
 
 def _header(profile: dict, d: dict) -> str:
     tags_html = "".join(f'<span class="htag">{t}</span>' for t in profile["tags"])
+    pic = d.get("picture_url", "")
+    if pic:
+        avatar_html = f'<img src="{pic}" alt="{profile["handle"]}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'
+    else:
+        avatar_html = profile["avatar"]
     return f"""
 <header class="site-header">
 <div class="container">
-<div class="avatar-wrap">{profile['avatar']}</div>
+<div class="avatar-wrap">{avatar_html}</div>
 <p class="header-handle">{profile['handle']}</p>
 <h1 class="header-name">{profile['name']}</h1>
 <p class="header-bio">{profile['bio']}</p>
