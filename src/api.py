@@ -123,15 +123,29 @@ def fetch_instagram_profile(profile: dict) -> dict:
     """Followers / following / media count + profile picture URL."""
     ig_id = profile["instagram_id"]
     token = _token()
+
+    # Basic profile data
     data = _get(f"{GRAPH}/{ig_id}", {
-        "fields":       "followers_count,follows_count,media_count,username,profile_picture_url",
+        "fields":       "followers_count,follows_count,media_count,username",
         "access_token": token,
     })
+
+    # Profile picture — optional, may not be available for all accounts
+    picture_url = ""
+    try:
+        pic_data = _get(f"{GRAPH}/{ig_id}", {
+            "fields":       "profile_picture_url",
+            "access_token": token,
+        })
+        picture_url = pic_data.get("profile_picture_url", "")
+    except Exception:
+        pass
+
     return {
-        "followers_count":       data.get("followers_count", 0),
-        "follows_count":         data.get("follows_count", 0),
-        "media_count":           data.get("media_count", 0),
-        "profile_picture_url":   data.get("profile_picture_url", ""),
+        "followers_count":     data.get("followers_count", 0),
+        "follows_count":       data.get("follows_count", 0),
+        "media_count":         data.get("media_count", 0),
+        "profile_picture_url": picture_url,
     }
 
 
