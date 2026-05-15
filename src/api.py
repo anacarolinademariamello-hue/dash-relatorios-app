@@ -1,11 +1,10 @@
 """
 Fetches Instagram Insights + Meta Ads data directly from the Meta Graph API.
-No third-party connector needed — uses the long-lived user access token.
-Token expires in ~60 days; regenerate via the OAuth flow in developers.facebook.com.
+Uses a long-lived User Access Token stored in st.secrets["meta_access_token"].
 """
 import json
 import requests
-from datetime import datetime
+from datetime import date, timedelta
 
 GRAPH = "https://graph.facebook.com/v21.0"
 
@@ -21,9 +20,9 @@ def _token() -> str:
         return os.environ.get("META_ACCESS_TOKEN", "")
 
 
-def _ts(d: str) -> int:
-    """ISO date string (YYYY-MM-DD) → Unix timestamp (midnight UTC)."""
-    return int(datetime.strptime(d, "%Y-%m-%d").timestamp())
+def _next_day(d: str) -> str:
+    """Return the day after d (ISO string), needed because 'until' is exclusive."""
+    return (date.fromisoformat(d) + timedelta(days=1)).isoformat()
 
 
 def _get(url: str, params: dict) -> dict:
@@ -35,20 +34,20 @@ def _get(url: str, params: dict) -> dict:
 # ── Instagram ─────────────────────────────────────────────────────────────────
 
 def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
-    """Daily reach + interactions for the period via Instagram Graph API."""
+    """Daily reach + interactions via Instagram Graph API."""
     ig_id = profile["instagram_id"]
     token = _token()
-    since = _ts(date_from)
-    until = _ts(date_to) + 86400  # include the full last day
+    # 'until' is exclusive so we add 1 day to include date_to
+    until = _next_day(date_to)
 
     by_date: dict = {}
 
-    # ── Account-level daily reach & impressions ──────────────────────────────
+    # ── Account-level daily reach ────────────────────────────────────────────
     try:
         resp = _get(f"{GRAPH}/{ig_id}/insights", {
             "metric":       "reach,impressions",
             "period":       "day",
-            "since":        since,
+            "since":        date_from,
             "until":        until,
             "access_token": token,
         })
@@ -64,7 +63,7 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
     try:
         media_resp = _get(f"{GRAPH}/{ig_id}/media", {
             "fields":       "id,timestamp,like_count,comments_count,insights.metric(saved,shares)",
-            "since":        since,
+            "since":        date_from,
             "until":        until,
             "limit":        200,
             "access_token": token,
@@ -83,7 +82,7 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
                 elif ins["name"] == "shares":
                     by_date[d]["shares"] = by_date[d].get("shares", 0) + val
     except Exception:
-        pass  # media insights are optional — reach data is enough to proceed
+        pass  # media insights optional — reach data is enough
 
     # ── Build rows ───────────────────────────────────────────────────────────
     rows = []
@@ -105,7 +104,7 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
 
 
 def fetch_instagram_profile(profile: dict) -> dict:
-    """Followers / following / media count from the Instagram profile."""
+    """Followers / following / media count."""
     ig_id = profile["instagram_id"]
     token = _token()
     data = _get(f"{GRAPH}/{ig_id}", {
