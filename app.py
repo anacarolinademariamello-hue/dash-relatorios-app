@@ -309,26 +309,31 @@ _action_bar = (
     'border-bottom:1px solid #dde3ed;padding:10px 20px;'
     'display:flex;gap:10px;align-items:center;'
     "font-family:'Segoe UI',system-ui,sans-serif;\">"
-    # Abrir HTML
-    "<button onclick=\""
-    "var b=atob('" + _html_b64 + "');"
-    "var blob=new Blob([b],{type:'text/html;charset=utf-8'});"
-    "window.open(URL.createObjectURL(blob),'_blank');"
-    '" style="'
-    'padding:7px 16px;border:1.5px solid #003f7c;border-radius:7px;'
-    'background:#fff;color:#003f7c;font-size:.88rem;font-weight:600;'
-    "cursor:pointer;font-family:inherit;\">📂 Abrir HTML</button>"
+    # Abrir HTML — <a target=_blank> não é bloqueado como popup
+    "<a id='btn-open-html' href='#' target='_blank' style='"
+    "padding:7px 16px;border:1.5px solid #003f7c;border-radius:7px;"
+    "background:#fff;color:#003f7c;font-size:.88rem;font-weight:600;"
+    "cursor:pointer;font-family:inherit;text-decoration:none;display:inline-flex;"
+    "align-items:center;'>📂 Abrir HTML</a>"
     # Salvar como PDF
     "<button onclick=\""
     "var el=document.getElementById('rpt-actions');"
     "el.style.display='none';"
     "window.print();"
     "setTimeout(function(){el.style.display='flex';},800);"
-    '" style="'
-    'padding:7px 16px;border:none;border-radius:7px;'
-    'background:linear-gradient(135deg,#003f7c,#1a5a9a);color:#fff;'
-    "font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit;\">🖨️ Salvar como PDF</button>"
+    "\" style='"
+    "padding:7px 16px;border:none;border-radius:7px;"
+    "background:linear-gradient(135deg,#003f7c,#1a5a9a);color:#fff;"
+    "font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit;'>🖨️ Salvar como PDF</button>"
     "</div>"
+    # Script: define o href do link com blob URL no carregamento da página
+    "<script>"
+    "(function(){"
+    "var arr=Uint8Array.from(atob('" + _html_b64 + "'),function(c){return c.charCodeAt(0);});"
+    "var blob=new Blob([arr],{type:'text/html;charset=utf-8'});"
+    "document.getElementById('btn-open-html').href=URL.createObjectURL(blob);"
+    "})();"
+    "</script>"
 )
 
 html_rendered = html.replace("<body>", "<body>" + _action_bar, 1)
