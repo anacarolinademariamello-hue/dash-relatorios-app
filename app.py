@@ -335,7 +335,14 @@ with col_pdf:
 </div>
 """, unsafe_allow_html=True)
 
-components.html(html, height=5000, scrolling=True)
+# Injeta listener de postMessage para o botão PDF funcionar mesmo com HTML cacheado
+_print_listener = (
+    "<script>window.addEventListener('message',function(e)"
+    "{if(e.data&&e.data.type==='dash-print')window.print();});</script>"
+)
+html_rendered = html.replace("</body>", _print_listener + "</body>", 1)
+
+components.html(html_rendered, height=5000, scrolling=True)
 
 st.markdown(
     '<p style="text-align:center;font-size:.72rem;color:#9ca3af;margin-top:16px;">'
