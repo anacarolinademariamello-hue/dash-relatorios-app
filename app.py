@@ -59,6 +59,16 @@ st.markdown("""
     color:#fff !important;
 }
 
+/* área de clique do selectbox — aumenta padding para facilitar o clique */
+[data-testid="stSidebar"] [data-baseweb="select"] [role="combobox"],
+[data-testid="stSidebar"] [data-baseweb="select"] [role="button"],
+[data-testid="stSidebar"] [data-baseweb="select"] > div > div {
+    min-height:42px !important;
+    padding-top:8px !important;
+    padding-bottom:8px !important;
+    cursor:pointer !important;
+}
+
 /* texto dentro do selectbox */
 [data-testid="stSidebar"] [data-baseweb="select"] span,
 [data-testid="stSidebar"] [data-baseweb="select"] div {
@@ -229,7 +239,48 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-if not gerar:
+# ── Session state para persistir relatório ────────────────────────────────────
+if "report_html"  not in st.session_state: st.session_state.report_html  = None
+if "report_label" not in st.session_state: st.session_state.report_label = ""
+if "report_file"  not in st.session_state: st.session_state.report_file  = ""
+
+if gerar:
+    # ── Validate ─────────────────────────────────────────────────────────────
+    if date_from > date_to:
+        st.error("⚠️ A data inicial deve ser anterior à data final.")
+        st.stop()
+    if (date_to - date_from).days > 90:
+        st.warning("⚠️ Período muito longo pode demorar. Recomendado: até 90 dias.")
+
+    profile       = PROFILES[profile_name]
+    date_from_str = date_from.isoformat()
+    date_to_str   = date_to.isoformat()
+
+    with st.spinner(f"⏳ Buscando dados de {profile['handle']}..."):
+        try:
+            ig_rows      = fetch_instagram_daily(profile, date_from_str, date_to_str)
+            profile_info = fetch_instagram_profile(profile)
+            audience     = fetch_instagram_audience(profile)
+            top_posts    = fetch_instagram_top_posts(profile, date_from_str, date_to_str)
+            ads_rows     = fetch_meta_ads_daily(profile, date_from_str, date_to_str) \
+                           if report_type != "Só Orgânico" else []
+        except Exception as e:
+            st.error(f"❌ Erro ao buscar dados: {e}")
+            st.info("Verifique se o token Meta está configurado corretamente.")
+            st.stop()
+
+    if not ig_rows:
+        st.warning("⚠️ Nenhum dado de alcance encontrado para o período selecionado.")
+
+    with st.spinner("🎨 Gerando relatório..."):
+        data = process(ig_rows, ads_rows, profile_info, audience, top_posts, date_from_str, date_to_str)
+        html = generate(profile, data, report_type)
+
+    st.session_state.report_html  = html
+    st.session_state.report_label = f"✅ Relatório gerado — {profile['handle']} · {data['period_label']} · {report_type}"
+    st.session_state.report_file  = f"relatorio_{profile['key']}_{date_from_str}_{date_to_str}.html"
+
+if not st.session_state.report_html:
     st.markdown("""
     <div class="welcome-card">
         <div style="font-size:3.5rem;margin-bottom:16px;">📊</div>
@@ -242,53 +293,17 @@ if not gerar:
     """, unsafe_allow_html=True)
     st.stop()
 
-# ── Validate ─────────────────────────────────────────────────────────────────
-if date_from > date_to:
-    st.error("⚠️ A data inicial deve ser anterior à data final.")
-    st.stop()
-
-if (date_to - date_from).days > 90:
-    st.warning("⚠️ Período muito longo pode demorar. Recomendado: até 90 dias.")
-
-# ── Fetch & process ──────────────────────────────────────────────────────────
-profile       = PROFILES[profile_name]
-date_from_str = date_from.isoformat()
-date_to_str   = date_to.isoformat()
-
-with st.spinner(f"⏳ Buscando dados de {profile['handle']}..."):
-    try:
-        ig_rows      = fetch_instagram_daily(profile, date_from_str, date_to_str)
-        profile_info = fetch_instagram_profile(profile)
-        audience     = fetch_instagram_audience(profile)
-        top_posts    = fetch_instagram_top_posts(profile, date_from_str, date_to_str)
-        ads_rows     = fetch_meta_ads_daily(profile, date_from_str, date_to_str) \
-                       if report_type != "Só Orgânico" else []
-    except Exception as e:
-        st.error(f"❌ Erro ao buscar dados: {e}")
-        st.info("Verifique se o token Meta está configurado corretamente em `.streamlit/secrets.toml` (campo `meta_access_token`).")
-        st.stop()
-
-# Aviso se não houver dados de alcance (período muito antigo ou sem atividade)
-if not ig_rows:
-    st.warning(
-        "⚠️ Nenhum dado de alcance encontrado para o período selecionado. "
-        "O Instagram Insights pode não ter dados para períodos muito antigos "
-        "ou para contas sem atividade neste intervalo. O relatório será gerado com os dados disponíveis."
-    )
-
-with st.spinner("🎨 Gerando relatório..."):
-    data = process(ig_rows, ads_rows, profile_info, audience, top_posts, date_from_str, date_to_str)
-    html = generate(profile, data, report_type)
+html = st.session_state.report_html
 
 # ── Render ────────────────────────────────────────────────────────────────────
-st.success(f"✅ Relatório gerado — {profile['handle']} · {data['period_label']} · {report_type}")
+st.success(st.session_state.report_label)
 
 # Botões de ação
-filename = f"relatorio_{profile['key']}_{date_from_str}_{date_to_str}.html"
+filename = st.session_state.report_file
 col_dl, col_pdf, _ = st.columns([1, 1, 2])
 with col_dl:
     st.download_button(
-        "📂 Abrir HTML",
+        "📂 Salvar como HTML",
         data=html.encode("utf-8"),
         file_name=filename,
         mime="text/html",
