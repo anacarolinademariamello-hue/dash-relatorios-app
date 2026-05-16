@@ -284,6 +284,18 @@ div[data-testid="stSidebarNav"] a[aria-selected="true"] {
     color:#fff !important;
 }
 
+/* link "Gerenciar Clientes" no sidebar */
+[data-testid="stSidebar"] [data-testid="stPageLink"] a,
+[data-testid="stSidebar"] [data-testid="stPageLink"] p {
+    color:rgba(255,255,255,0.75) !important;
+    font-size:0.88rem !important;
+    text-decoration:none !important;
+}
+[data-testid="stSidebar"] [data-testid="stPageLink"]:hover a,
+[data-testid="stSidebar"] [data-testid="stPageLink"]:hover p {
+    color:#fff !important;
+}
+
 /* ── Main area ─────────────────────────────────────────── */
 .main .block-container {
     padding-top: 1.5rem;
@@ -343,6 +355,7 @@ with st.sidebar:
     else:
         st.markdown("### 📊 Dash Digital")
     st.markdown("**Gerador de Relatórios**")
+    st.page_link("pages/2_Clientes.py", label="👥 Gerenciar Clientes", icon=None)
     st.markdown("---")
 
     _all_profiles = _load_profiles()
