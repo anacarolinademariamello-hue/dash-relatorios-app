@@ -933,7 +933,9 @@ def generate(profile: dict, data: dict, report_type: str = "Geral") -> str:
         "</div>",
         _footer(profile, data),
         "<script>Chart.defaults.font.family=\"'Segoe UI',system-ui,sans-serif\";"
-        "Chart.defaults.font.size=11;Chart.defaults.color='#6b7280';</script>",
+        "Chart.defaults.font.size=11;Chart.defaults.color='#6b7280';"
+        "window.addEventListener('message',function(e){if(e.data&&e.data.type==='dash-print')window.print();});"
+        "</script>",
         "</body></html>",
     ]
 

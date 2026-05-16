@@ -327,17 +327,10 @@ with col_pdf:
 <div class="btn-pdf-wrap">
 <button onclick="
   var frames = document.querySelectorAll('iframe');
-  var ok = false;
+  if(frames.length===0){alert('Aguarde o relatório carregar e tente novamente.');return;}
   for(var i=0;i<frames.length;i++){
-    try{
-      var d = frames[i].contentDocument;
-      if(d && d.querySelector('.site-header')){
-        frames[i].contentWindow.print();
-        ok=true; break;
-      }
-    }catch(e){}
+    frames[i].contentWindow.postMessage({type:'dash-print'},'*');
   }
-  if(!ok) alert('Aguarde o relatório carregar e tente novamente.');
 ">🖨️ Salvar como PDF</button>
 </div>
 """, unsafe_allow_html=True)
