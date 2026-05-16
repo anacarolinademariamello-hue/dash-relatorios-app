@@ -118,7 +118,7 @@ with st.sidebar:
         st.markdown(
             f'<div style="padding:12px 4px 8px;">'
             f'<img src="data:image/png;base64,{_logo_b64}" '
-            f'style="height:38px;background:white;border-radius:8px;padding:3px 10px;">'
+            f'style="height:38px;">'
             f'</div>',
             unsafe_allow_html=True,
         )
