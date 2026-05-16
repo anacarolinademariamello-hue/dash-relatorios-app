@@ -192,39 +192,75 @@ with st.sidebar:
         help="Geral: tudo | Só Orgânico: sem seção de ads | Só Pago: foco em campanhas",
     )
 
-    gerar = st.button("🚀 Gerar Relatório", use_container_width=True)
+    # ── Status do token Meta (calculado antes do botão) ───────────────────────
+    _token_ok    = True   # False = bloqueia o botão
+    _token_msg   = ""
+    _token_level = ""     # "error" | "warning" | "ok" | "missing"
 
-    st.markdown("---")
-
-    # ── Aviso de expiração do token Meta ──────────────────────────────────────
     try:
-        token_created_str = st.secrets.get("meta_token_created", "")
-        if token_created_str:
-            token_created = datetime.strptime(token_created_str, "%Y-%m-%d").date()
-            token_expires = token_created + timedelta(days=60)
-            days_left = (token_expires - date.today()).days
-            if days_left <= 0:
-                st.markdown(
-                    "<div style='background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;"
-                    "padding:10px 12px;font-size:.78rem;color:#991b1b;margin-bottom:8px;'>"
-                    "🔴 <strong>Token Meta expirado!</strong><br>Renove o token para gerar relatórios.</div>",
-                    unsafe_allow_html=True,
+        _meta_token = st.secrets.get("meta_access_token", "") or ""
+        _created_str = st.secrets.get("meta_token_created", "") or ""
+
+        if not _meta_token:
+            _token_ok    = False
+            _token_level = "missing"
+            _token_msg   = (
+                "🔴 <strong>Token Meta não configurado!</strong><br>"
+                "Adicione <code>meta_access_token</code> em Secrets."
+            )
+        elif _created_str:
+            _created  = datetime.strptime(_created_str, "%Y-%m-%d").date()
+            _expires  = _created + timedelta(days=60)
+            _days_left = (_expires - date.today()).days
+
+            if _days_left <= 0:
+                _token_ok    = False
+                _token_level = "error"
+                _token_msg   = (
+                    "🔴 <strong>Token Meta expirado!</strong><br>"
+                    "Renove o token para gerar relatórios."
                 )
-            elif days_left <= 10:
-                st.markdown(
-                    f"<div style='background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;"
-                    f"padding:10px 12px;font-size:.78rem;color:#92400e;margin-bottom:8px;'>"
-                    f"⚠️ <strong>Token expira em {days_left} dias</strong><br>"
-                    f"Renove antes de {token_expires.strftime('%d/%m/%Y')}.</div>",
-                    unsafe_allow_html=True,
+            elif _days_left <= 10:
+                _token_level = "warning"
+                _token_msg   = (
+                    f"⚠️ <strong>Token expira em {_days_left} dias</strong><br>"
+                    f"Renove antes de {_expires.strftime('%d/%m/%Y')}."
                 )
             else:
-                st.markdown(
-                    f"<small style='opacity:.45;font-size:.7rem;'>🔑 Token válido por mais {days_left} dias</small>",
-                    unsafe_allow_html=True,
-                )
+                _token_level = "ok"
+                _token_msg   = f"🔑 Token válido por mais {_days_left} dias"
     except Exception:
-        pass
+        pass  # sem secrets configurados — não bloqueia (ambiente local)
+
+    # ── Botão (desabilitado se token inválido/expirado) ───────────────────────
+    _btn_label = "🚀 Gerar Relatório" if _token_ok else "⛔ Token inválido — não é possível gerar"
+    gerar = st.button(_btn_label, use_container_width=True, disabled=not _token_ok)
+
+    # ── Aviso de token abaixo do botão ────────────────────────────────────────
+    st.markdown("---")
+    if _token_level == "missing":
+        st.markdown(
+            f"<div style='background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;"
+            f"padding:10px 12px;font-size:.78rem;color:#991b1b;margin-bottom:8px;'>{_token_msg}</div>",
+            unsafe_allow_html=True,
+        )
+    elif _token_level == "error":
+        st.markdown(
+            f"<div style='background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;"
+            f"padding:10px 12px;font-size:.78rem;color:#991b1b;margin-bottom:8px;'>{_token_msg}</div>",
+            unsafe_allow_html=True,
+        )
+    elif _token_level == "warning":
+        st.markdown(
+            f"<div style='background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;"
+            f"padding:10px 12px;font-size:.78rem;color:#92400e;margin-bottom:8px;'>{_token_msg}</div>",
+            unsafe_allow_html=True,
+        )
+    elif _token_level == "ok":
+        st.markdown(
+            f"<small style='opacity:.45;font-size:.7rem;'>{_token_msg}</small>",
+            unsafe_allow_html=True,
+        )
 
     st.markdown(
         "<small style='opacity:.55'>Os dados são buscados em tempo real<br>via Instagram Insights + Meta Ads</small>",
