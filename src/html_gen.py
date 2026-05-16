@@ -110,6 +110,7 @@ tbody td{{padding:12px 16px;color:#374151;white-space:nowrap;}}
 @media print{{
   *{{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}
   .pdf-btn{{display:none!important;}}
+  #rpt-actions{{display:none!important;}}
   body{{background:#fff!important;margin:0;padding:0;}}
   .site-header{{background:linear-gradient(135deg,var(--p) 0%,var(--p2) 60%,{c['header_end']} 100%)!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}
   .site-header *{{color:#fff!important;}}

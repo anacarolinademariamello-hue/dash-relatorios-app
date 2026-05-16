@@ -298,68 +298,41 @@ html = st.session_state.report_html
 # ── Render ────────────────────────────────────────────────────────────────────
 st.success(st.session_state.report_label)
 
-# Botões de ação
+# ── Barra de ações injetada DENTRO do iframe do relatório ─────────────────────
+# Assim não há cross-origin: window.print() e blob URL funcionam diretamente.
 _html_b64 = base64.b64encode(html.encode("utf-8")).decode()
-col_dl, col_pdf, _ = st.columns([1, 1, 2])
 
-# ── Botão "Abrir HTML" — abre nova aba via blob URL (dentro de components.html
-#    para evitar restrições do sandbox do Streamlit)
-with col_dl:
-    components.html(f"""
-<style>
-*{{margin:0;padding:0;box-sizing:border-box;}}
-button{{
-  width:100%;height:40px;
-  background:#fff;color:#003f7c;
-  border:1.5px solid #003f7c;border-radius:8px;
-  font-size:.88rem;font-weight:600;cursor:pointer;
-  font-family:'Segoe UI',system-ui,sans-serif;
-  transition:background .15s;
-}}
-button:hover{{background:#e8f0fb;}}
-</style>
-<button onclick="
-  var b=atob('{_html_b64}');
-  var blob=new Blob([b],{{type:'text/html;charset=utf-8'}});
-  window.open(URL.createObjectURL(blob),'_blank');
-">📂 Abrir HTML</button>
-""", height=46)
+_action_bar = (
+    '<div id="rpt-actions" style="'
+    'position:sticky;top:0;z-index:9999;'
+    'background:rgba(255,255,255,0.97);backdrop-filter:blur(8px);'
+    'border-bottom:1px solid #dde3ed;padding:10px 20px;'
+    'display:flex;gap:10px;align-items:center;'
+    "font-family:'Segoe UI',system-ui,sans-serif;\">"
+    # Abrir HTML
+    "<button onclick=\""
+    "var b=atob('" + _html_b64 + "');"
+    "var blob=new Blob([b],{type:'text/html;charset=utf-8'});"
+    "window.open(URL.createObjectURL(blob),'_blank');"
+    '" style="'
+    'padding:7px 16px;border:1.5px solid #003f7c;border-radius:7px;'
+    'background:#fff;color:#003f7c;font-size:.88rem;font-weight:600;'
+    "cursor:pointer;font-family:inherit;\">📂 Abrir HTML</button>"
+    # Salvar como PDF
+    "<button onclick=\""
+    "var el=document.getElementById('rpt-actions');"
+    "el.style.display='none';"
+    "window.print();"
+    "setTimeout(function(){el.style.display='flex';},800);"
+    '" style="'
+    'padding:7px 16px;border:none;border-radius:7px;'
+    'background:linear-gradient(135deg,#003f7c,#1a5a9a);color:#fff;'
+    "font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit;\">🖨️ Salvar como PDF</button>"
+    "</div>"
+)
 
-# ── Botão "Salvar como PDF" — chama print() diretamente no iframe do relatório
-with col_pdf:
-    st.markdown("""
-<style>
-.btn-pdf-wrap > button {
-    width:100%;padding:.45rem .9rem;
-    background:linear-gradient(135deg,#003f7c,#1a5a9a)!important;
-    color:#fff!important;border:none!important;border-radius:.5rem!important;
-    font-size:.9rem!important;font-weight:600!important;cursor:pointer;
-    transition:all .2s;line-height:1.6;
-}
-.btn-pdf-wrap > button:hover {
-    background:linear-gradient(135deg,#1a5a9a,#2468b0)!important;
-    transform:translateY(-1px);
-}
-</style>
-<div class="btn-pdf-wrap">
-<button onclick="
-  var frames = document.querySelectorAll('iframe');
-  var ok = false;
-  for(var i=0;i<frames.length;i++){
-    try{
-      var d = frames[i].contentDocument;
-      if(d && d.querySelector('.site-header')){
-        frames[i].contentWindow.print();
-        ok=true; break;
-      }
-    }catch(e){}
-  }
-  if(!ok) alert('Aguarde o relatório carregar e tente novamente.');
-">🖨️ Salvar como PDF</button>
-</div>
-""", unsafe_allow_html=True)
-
-components.html(html, height=5000, scrolling=True)
+html_rendered = html.replace("<body>", "<body>" + _action_bar, 1)
+components.html(html_rendered, height=5000, scrolling=True)
 
 st.markdown(
     '<p style="text-align:center;font-size:.72rem;color:#9ca3af;margin-top:16px;">'
