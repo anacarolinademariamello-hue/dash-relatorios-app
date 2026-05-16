@@ -271,7 +271,18 @@ st.markdown("""
     transform:translateY(-1px);
 }
 
-div[data-testid="stSidebarNav"] {display:none;}
+/* Navegação entre páginas — estilizada para o tema escuro */
+div[data-testid="stSidebarNav"] {display:block;}
+div[data-testid="stSidebarNav"] a {
+    color:rgba(255,255,255,0.80) !important;
+    border-radius:8px;
+    padding:6px 10px;
+}
+div[data-testid="stSidebarNav"] a:hover,
+div[data-testid="stSidebarNav"] a[aria-selected="true"] {
+    background:rgba(255,255,255,0.12) !important;
+    color:#fff !important;
+}
 
 /* ── Main area ─────────────────────────────────────────── */
 .main .block-container {

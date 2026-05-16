@@ -29,7 +29,17 @@ st.markdown("""
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
 [data-testid="stSidebar"] h3 { color:#fff !important; }
-div[data-testid="stSidebarNav"] { display:none; }
+div[data-testid="stSidebarNav"] { display:block; }
+div[data-testid="stSidebarNav"] a {
+    color:rgba(255,255,255,0.80) !important;
+    border-radius:8px;
+    padding:6px 10px;
+}
+div[data-testid="stSidebarNav"] a:hover,
+div[data-testid="stSidebarNav"] a[aria-selected="true"] {
+    background:rgba(255,255,255,0.12) !important;
+    color:#fff !important;
+}
 .main .block-container { padding-top:1.5rem; max-width:1000px; }
 .client-card {
     background:#fff; border:1px solid #dde3ed; border-radius:14px;
