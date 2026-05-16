@@ -299,16 +299,33 @@ html = st.session_state.report_html
 st.success(st.session_state.report_label)
 
 # Botões de ação
-filename = st.session_state.report_file
+_html_b64 = base64.b64encode(html.encode("utf-8")).decode()
 col_dl, col_pdf, _ = st.columns([1, 1, 2])
+
+# ── Botão "Abrir HTML" — abre nova aba via blob URL (dentro de components.html
+#    para evitar restrições do sandbox do Streamlit)
 with col_dl:
-    st.download_button(
-        "📂 Salvar como HTML",
-        data=html.encode("utf-8"),
-        file_name=filename,
-        mime="text/html",
-        use_container_width=True,
-    )
+    components.html(f"""
+<style>
+*{{margin:0;padding:0;box-sizing:border-box;}}
+button{{
+  width:100%;height:40px;
+  background:#fff;color:#003f7c;
+  border:1.5px solid #003f7c;border-radius:8px;
+  font-size:.88rem;font-weight:600;cursor:pointer;
+  font-family:'Segoe UI',system-ui,sans-serif;
+  transition:background .15s;
+}}
+button:hover{{background:#e8f0fb;}}
+</style>
+<button onclick="
+  var b=atob('{_html_b64}');
+  var blob=new Blob([b],{{type:'text/html;charset=utf-8'}});
+  window.open(URL.createObjectURL(blob),'_blank');
+">📂 Abrir HTML</button>
+""", height=46)
+
+# ── Botão "Salvar como PDF" — chama print() diretamente no iframe do relatório
 with col_pdf:
     st.markdown("""
 <style>
@@ -327,22 +344,22 @@ with col_pdf:
 <div class="btn-pdf-wrap">
 <button onclick="
   var frames = document.querySelectorAll('iframe');
-  if(frames.length===0){alert('Aguarde o relatório carregar e tente novamente.');return;}
+  var ok = false;
   for(var i=0;i<frames.length;i++){
-    frames[i].contentWindow.postMessage({type:'dash-print'},'*');
+    try{
+      var d = frames[i].contentDocument;
+      if(d && d.querySelector('.site-header')){
+        frames[i].contentWindow.print();
+        ok=true; break;
+      }
+    }catch(e){}
   }
+  if(!ok) alert('Aguarde o relatório carregar e tente novamente.');
 ">🖨️ Salvar como PDF</button>
 </div>
 """, unsafe_allow_html=True)
 
-# Injeta listener de postMessage para o botão PDF funcionar mesmo com HTML cacheado
-_print_listener = (
-    "<script>window.addEventListener('message',function(e)"
-    "{if(e.data&&e.data.type==='dash-print')window.print();});</script>"
-)
-html_rendered = html.replace("</body>", _print_listener + "</body>", 1)
-
-components.html(html_rendered, height=5000, scrolling=True)
+components.html(html, height=5000, scrolling=True)
 
 st.markdown(
     '<p style="text-align:center;font-size:.72rem;color:#9ca3af;margin-top:16px;">'
