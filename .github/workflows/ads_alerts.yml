@@ -1,0 +1,32 @@
+name: Daily Ads Alert Check
+
+on:
+  schedule:
+    # Runs every day at 11:00 UTC (08:00 BRT)
+    - cron: "0 11 * * *"
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  check-alerts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run ads alert check
+        env:
+          META_ACCESS_TOKEN:    ${{ secrets.META_ACCESS_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY:       ${{ secrets.RESEND_API_KEY }}
+        run: python scripts/check_ads_alerts.py

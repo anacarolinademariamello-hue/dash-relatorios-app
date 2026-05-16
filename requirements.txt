@@ -1,3 +1,5 @@
 streamlit>=1.35.0
 requests>=2.31.0
 pandas>=2.0.0
+# supabase_db.py and alerts.py use requests (already listed above)
+# No extra packages needed for Supabase REST API integration

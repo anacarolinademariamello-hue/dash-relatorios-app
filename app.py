@@ -17,6 +17,7 @@ from src.api import (
 )
 from src.processor import process
 from src.html_gen import generate
+from src import supabase_db
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -107,6 +108,74 @@ def _make_csv(data: dict) -> str:
             ])
 
     return output.getvalue()
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _load_profiles() -> dict:
+    """
+    Load client profiles: Supabase first, fall back to profiles.py.
+    Cached for 5 minutes so profile changes appear quickly.
+    """
+    db_profiles = supabase_db.get_clients()
+    if db_profiles:
+        return db_profiles
+    return PROFILES
+
+
+def _trending_badges(current: dict, previous: dict) -> str:
+    """
+    Build an HTML string with delta badges comparing current vs previous metrics.
+    Shown between the success banner and the report iframe.
+    """
+    def _delta(key, label, prefix="", suffix="", decimals=0):
+        c = float(current.get(key, 0))
+        p = float(previous.get(key, 0))
+        if p == 0:
+            return ""
+        pct = (c - p) / p * 100
+        arrow  = "↑" if pct >= 0 else "↓"
+        color  = "#16a34a" if pct >= 0 else "#dc2626"
+        bg     = "#f0fdf4" if pct >= 0 else "#fef2f2"
+        border = "#bbf7d0" if pct >= 0 else "#fecaca"
+        if decimals:
+            val_str = f"{prefix}{c:,.{decimals}f}{suffix}".replace(",", "X").replace(".", ",").replace("X", ".")
+        else:
+            val_str = f"{prefix}{int(round(c)):,}{suffix}".replace(",", ".")
+        return (
+            f'<div style="display:inline-flex;align-items:center;gap:6px;'
+            f'background:{bg};border:1px solid {border};border-radius:8px;'
+            f'padding:5px 10px;font-size:.8rem;white-space:nowrap;">'
+            f'<span style="color:#374151;">{label}</span>'
+            f'<strong style="color:#111;">{val_str}</strong>'
+            f'<span style="color:{color};font-weight:700;">{arrow} {abs(pct):.1f}%</span>'
+            f'</div>'
+        )
+
+    badges = [
+        _delta("total_reach",        "📡 Alcance"),
+        _delta("total_organic",      "🌱 Orgânico"),
+        _delta("total_interactions", "💬 Interações"),
+        _delta("org_eng_rate",       "📊 Eng.", suffix="%", decimals=2),
+        _delta("total_saves",        "💾 Saves"),
+        _delta("followers_gained",   "📈 Seguidores", prefix="+"),
+        _delta("total_spend",        "💰 Gasto", prefix="R$", decimals=2),
+    ]
+    badges = [b for b in badges if b]  # remove empty
+
+    if not badges:
+        return ""
+
+    return (
+        '<div style="background:#fff;border:1px solid #dde3ed;border-radius:12px;'
+        'padding:14px 18px;margin-bottom:12px;">'
+        '<div style="font-size:.78rem;color:#6b7280;font-weight:600;'
+        'text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">'
+        '📊 Comparativo vs período anterior</div>'
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;">'
+        + "".join(badges)
+        + '</div></div>'
+    )
+
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -265,9 +334,10 @@ with st.sidebar:
     st.markdown("**Gerador de Relatórios**")
     st.markdown("---")
 
+    _all_profiles = _load_profiles()
     profile_name = st.selectbox(
         "Perfil",
-        list(PROFILES.keys()),
+        list(_all_profiles.keys()),
         help="Selecione o cliente",
     )
 
@@ -370,7 +440,7 @@ st.markdown("""
 
 # ── Session state ─────────────────────────────────────────────────────────────
 for _k, _v in [("report_html", None), ("report_label", ""), ("report_file", ""),
-               ("report_data", None), ("report_config", "")]:
+               ("report_data", None), ("report_config", ""), ("report_prev", None)]:
     if _k not in st.session_state:
         st.session_state[_k] = _v
 
@@ -391,7 +461,8 @@ if gerar:
     if date_from < _max_lookback:
         st.warning("⚠️ A Meta limita o histórico a ~2 anos. Dados mais antigos podem estar incompletos.")
 
-    profile       = PROFILES[profile_name]
+    _all_profiles = _load_profiles()
+    profile       = _all_profiles[profile_name]
     date_from_str = date_from.isoformat()
     date_to_str   = date_to.isoformat()
 
@@ -448,6 +519,15 @@ if gerar:
     st.session_state.report_file   = f"relatorio_{profile['key']}_{date_from_str}_{date_to_str}.html"
     st.session_state.report_config = _current_config
 
+    # ── Salvar histórico + buscar comparativo ─────────────────────────────────
+    supabase_db.save_report_metrics(
+        profile["key"], date_from_str, date_to_str, report_type, data
+    )
+    prev = supabase_db.get_previous_metrics(
+        profile["key"], date_from_str, date_to_str, report_type
+    )
+    st.session_state.report_prev = prev  # None if no history yet
+
 if not st.session_state.report_html:
     st.markdown("""
     <div class="welcome-card">
@@ -465,6 +545,12 @@ html = st.session_state.report_html
 
 # ── Render ────────────────────────────────────────────────────────────────────
 st.success(st.session_state.report_label)
+
+# ── Trending badges (vs período anterior) ────────────────────────────────────
+if st.session_state.report_data and st.session_state.report_prev:
+    _badges_html = _trending_badges(st.session_state.report_data, st.session_state.report_prev)
+    if _badges_html:
+        st.markdown(_badges_html, unsafe_allow_html=True)
 
 # Botão CSV (fora do iframe — download nativo do Streamlit)
 if st.session_state.report_data:

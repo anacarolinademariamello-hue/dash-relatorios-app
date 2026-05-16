@@ -1,0 +1,32 @@
+name: Monthly Performance Summary Email
+
+on:
+  schedule:
+    # Runs on the 1st of every month at 12:00 UTC (09:00 BRT)
+    - cron: "0 12 1 * *"
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  send-monthly-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Send monthly summary emails
+        env:
+          META_ACCESS_TOKEN:    ${{ secrets.META_ACCESS_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY:       ${{ secrets.RESEND_API_KEY }}
+        run: python scripts/monthly_email.py
