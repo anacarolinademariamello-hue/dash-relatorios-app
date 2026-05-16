@@ -355,7 +355,12 @@ with st.sidebar:
     else:
         st.markdown("### 📊 Dash Digital")
     st.markdown("**Gerador de Relatórios**")
-    st.page_link("pages/2_Clientes.py", label="👥 Gerenciar Clientes", icon=None)
+    st.markdown(
+        '<a href="/?view=clientes" target="_self" style="display:block;'
+        'color:rgba(255,255,255,0.75);text-decoration:none;font-size:.87rem;'
+        'padding:4px 0 8px 0;">👥 Gerenciar Clientes</a>',
+        unsafe_allow_html=True,
+    )
     st.markdown("---")
 
     _all_profiles = _load_profiles()
@@ -453,6 +458,219 @@ with st.sidebar:
         "<small style='opacity:.55'>Os dados são buscados em tempo real<br>via Instagram Insights + Meta Ads</small>",
         unsafe_allow_html=True,
     )
+
+# ── Vista: Gerenciar Clientes (?view=clientes) ────────────────────────────────
+_view = st.query_params.get("view", "")
+if _view == "clientes":
+
+    def _cl_headers():
+        _, key = supabase_db._get_creds()
+        return {"apikey": key, "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json", "Prefer": "return=representation"}
+
+    def _cl_rest(table):
+        url, _ = supabase_db._get_creds()
+        return f"{url}/rest/v1/{table}"
+
+    @st.cache_data(ttl=60)
+    def _load_all_clients():
+        if not supabase_db.is_configured():
+            return []
+        try:
+            r = requests.get(_cl_rest("clients"), headers=_cl_headers(),
+                             params={"order": "name.asc", "select": "*"}, timeout=10)
+            r.raise_for_status()
+            return r.json()
+        except Exception:
+            return []
+
+    def _save_client(data):
+        if not supabase_db.is_configured():
+            return False, "Supabase não configurado."
+        try:
+            r = requests.post(_cl_rest("clients"),
+                              headers={**_cl_headers(), "Prefer": "resolution=merge-duplicates,return=minimal"},
+                              json=data, timeout=10)
+            if r.status_code in (200, 201):
+                return True, "✅ Cliente salvo!"
+            return False, f"Erro {r.status_code}: {r.text}"
+        except Exception as e:
+            return False, f"Erro: {e}"
+
+    def _toggle_active(key, active):
+        try:
+            r = requests.patch(_cl_rest("clients"), headers=_cl_headers(),
+                               params={"key": f"eq.{key}"}, json={"active": active}, timeout=10)
+            return r.status_code in (200, 204)
+        except Exception:
+            return False
+
+    DEFAULT_COLORS = {"p": "#003f7c", "p2": "#1a5a9a", "a": "#f8b940", "ad": "#d99a20",
+                      "al": "rgba(248,185,64,0.13)", "pl": "rgba(0,63,124,0.08)",
+                      "bg": "#f0f3f8", "header_end": "#2471c8",
+                      "period_color": "#ffe08a", "stat_color": "#f8b940"}
+
+    def _client_form(existing=None, form_key="new"):
+        import json as _json
+        e = existing or {}
+        with st.form(key=f"clform_{form_key}"):
+            st.markdown("##### Dados Básicos")
+            c1, c2 = st.columns(2)
+            with c1:
+                name   = st.text_input("Nome *", value=e.get("name", ""))
+                handle = st.text_input("Handle Instagram *", value=e.get("handle", ""))
+                avatar = st.text_input("Emoji", value=e.get("avatar", "📊"))
+            with c2:
+                key_v  = st.text_input("Slug único *", value=e.get("key", ""), help="Letras minúsculas, sem espaços")
+                ig_id  = st.text_input("Instagram ID *", value=e.get("instagram_id", ""))
+                fb_id  = st.text_input("Meta Ads Account ID *", value=e.get("facebook_account_id", ""))
+            bio  = st.text_area("Bio", value=e.get("bio", ""), height=60)
+            tags_raw = st.text_input("Tags (vírgula)", value=", ".join(e.get("tags") or []))
+            footer   = st.text_input("Rodapé", value=e.get("footer", ""))
+            st.markdown("##### Tom de Voz")
+            tov  = st.text_area("Tom de voz", value=e.get("tone_of_voice", ""), height=80)
+            comp = st.text_input("Concorrentes", value=e.get("competitors", ""))
+            st.markdown("##### Cores")
+            colors = e.get("colors") or DEFAULT_COLORS
+            if isinstance(colors, str):
+                colors = _json.loads(colors)
+            cc1, cc2, cc3, cc4 = st.columns(4)
+            with cc1:
+                p  = st.color_picker("Primária",      value=colors.get("p",  "#003f7c"))
+                p2 = st.color_picker("Primária 2",    value=colors.get("p2", "#1a5a9a"))
+            with cc2:
+                a  = st.color_picker("Destaque",      value=colors.get("a",  "#f8b940"))
+                ad = st.color_picker("Destaque esc.", value=colors.get("ad", "#d99a20"))
+            with cc3:
+                he = st.color_picker("Header fim",    value=colors.get("header_end",   "#2471c8"))
+                pc = st.color_picker("Período badge", value=colors.get("period_color", "#ffe08a"))
+            with cc4:
+                sc = st.color_picker("KPI cor",       value=colors.get("stat_color",   "#f8b940"))
+            submitted = st.form_submit_button("💾 Salvar", use_container_width=True)
+        if submitted:
+            errs = [f for f in ["Nome" if not name.strip() else "",
+                                  "Handle" if not handle.strip() else "",
+                                  "Slug" if not key_v.strip() else "",
+                                  "Instagram ID" if not ig_id.strip() else "",
+                                  "Meta Ads ID" if not fb_id.strip() else ""] if f]
+            if errs:
+                st.error("Obrigatório: " + ", ".join(errs))
+                return None
+            def _rgba(h, alpha):
+                h = h.lstrip("#")
+                r2,g2,b2 = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+                return f"rgba({r2},{g2},{b2},{alpha})"
+            return {"key": key_v.strip().lower(), "name": name.strip(),
+                    "handle": handle.strip(), "instagram_id": ig_id.strip(),
+                    "facebook_account_id": fb_id.strip(), "bio": bio.strip(),
+                    "tags": [t.strip() for t in tags_raw.split(",") if t.strip()],
+                    "avatar": avatar.strip() or "📊",
+                    "footer": footer.strip() or f"Relatório gerado para <strong>{name.strip()}</strong> por Dash Digital.",
+                    "colors": {"p":p,"p2":p2,"a":a,"ad":ad,"al":_rgba(a,.13),"pl":_rgba(p,.08),
+                               "bg":"#f0f3f8","header_end":he,"period_color":pc,"stat_color":sc},
+                    "tone_of_voice": tov.strip(), "competitors": comp.strip(), "active": True}
+        return None
+
+    # ── Renderiza UI de clientes ───────────────────────────────────────────────
+    st.markdown("""
+    <div style="background:linear-gradient(135deg,#003f7c,#1a5a9a);border-radius:16px;
+    padding:26px 32px;color:#fff;margin-bottom:24px;">
+    <div style="font-size:1.45rem;font-weight:700;">👥 Gerenciar Clientes</div>
+    <div style="font-size:.88rem;opacity:.65;margin-top:4px;">
+    Cadastre e edite os clientes da agência. Alterações aparecem em todas as plataformas.
+    </div></div>
+    """, unsafe_allow_html=True)
+
+    if not supabase_db.is_configured():
+        st.error("⚠️ Supabase não configurado.")
+        st.stop()
+
+    if "cl_editing" not in st.session_state:
+        st.session_state.cl_editing = None
+    if "cl_new" not in st.session_state:
+        st.session_state.cl_new = False
+
+    clients_list = _load_all_clients()
+    col_t, col_b = st.columns([4, 1])
+    with col_t:
+        st.markdown(f"### Clientes cadastrados ({len(clients_list)})")
+    with col_b:
+        if st.button("➕ Novo cliente", use_container_width=True):
+            st.session_state.cl_new = True
+            st.session_state.cl_editing = None
+
+    if st.session_state.cl_new:
+        st.markdown("---")
+        st.markdown("#### Cadastrar Novo Cliente")
+        result = _client_form(form_key="new")
+        if result is not None:
+            ok, msg = _save_client(result)
+            if ok:
+                st.success(msg)
+                st.session_state.cl_new = False
+                _load_all_clients.clear()
+                st.rerun()
+            else:
+                st.error(msg)
+        if st.button("✕ Cancelar", key="cl_cancel_new"):
+            st.session_state.cl_new = False
+            st.rerun()
+        st.markdown("---")
+
+    if not clients_list:
+        st.info("Nenhum cliente ainda. Clique em **➕ Novo cliente**.")
+    else:
+        import json as _json
+        for cl in clients_list:
+            active  = cl.get("active", True)
+            colors  = cl.get("colors") or {}
+            if isinstance(colors, str):
+                colors = _json.loads(colors)
+            accent  = colors.get("a", "#f8b940")
+            opacity = "1.0" if active else "0.45"
+            cav, cinf, cact = st.columns([1, 6, 2])
+            with cav:
+                st.markdown(f'<div style="font-size:2rem;width:52px;height:52px;border-radius:50%;'
+                            f'background:{accent}22;display:flex;align-items:center;'
+                            f'justify-content:center;opacity:{opacity};">{cl.get("avatar","📊")}</div>',
+                            unsafe_allow_html=True)
+            with cinf:
+                badge = "" if active else ' <span style="background:#fee2e2;color:#991b1b;font-size:.7rem;padding:2px 8px;border-radius:10px;font-weight:700;">INATIVO</span>'
+                st.markdown(f'<div style="opacity:{opacity};"><strong style="font-size:1rem;color:#003f7c;">'
+                            f'{cl["name"]}</strong>{badge}<br>'
+                            f'<span style="font-size:.85rem;color:#6b7280;">{cl.get("handle","")}</span></div>',
+                            unsafe_allow_html=True)
+            with cact:
+                b1, b2 = st.columns(2)
+                with b1:
+                    if st.button("✏️", key=f"cl_ed_{cl['key']}"):
+                        st.session_state.cl_editing = cl["key"]
+                        st.session_state.cl_new = False
+                with b2:
+                    if active:
+                        if st.button("🔕", key=f"cl_da_{cl['key']}", help="Desativar"):
+                            if _toggle_active(cl["key"], False):
+                                _load_all_clients.clear(); st.rerun()
+                    else:
+                        if st.button("✅", key=f"cl_ac_{cl['key']}", help="Reativar"):
+                            if _toggle_active(cl["key"], True):
+                                _load_all_clients.clear(); st.rerun()
+            if st.session_state.cl_editing == cl["key"]:
+                with st.expander(f"✏️ Editando: {cl['name']}", expanded=True):
+                    result = _client_form(existing=cl, form_key=f"edit_{cl['key']}")
+                    if result is not None:
+                        ok, msg = _save_client(result)
+                        if ok:
+                            st.success(msg)
+                            st.session_state.cl_editing = None
+                            _load_all_clients.clear(); st.rerun()
+                        else:
+                            st.error(msg)
+                    if st.button("✕ Cancelar edição", key=f"cl_ce_{cl['key']}"):
+                        st.session_state.cl_editing = None; st.rerun()
+            st.divider()
+
+    st.stop()
 
 # ── Main area ─────────────────────────────────────────────────────────────────
 st.markdown("""

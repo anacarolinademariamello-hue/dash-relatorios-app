@@ -134,7 +134,6 @@ with st.sidebar:
     else:
         st.markdown("### 📊 Dash Digital")
     st.markdown("**Gerenciar Clientes**")
-    st.page_link("app.py", label="📊 Gerador de Relatórios", icon=None)
     st.markdown("---")
     st.markdown(
         "<small style='opacity:.6;'>Clientes cadastrados aqui aparecem automaticamente no "
