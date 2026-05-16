@@ -3,10 +3,12 @@ Fetches Instagram Insights + Meta Ads data directly from the Meta Graph API.
 Uses a long-lived User Access Token stored in st.secrets["meta_access_token"].
 """
 import json
+import time
 import requests
 from datetime import date, timedelta
 
-GRAPH = "https://graph.facebook.com/v25.0"
+GRAPH_VERSION = "v25.0"
+GRAPH = f"https://graph.facebook.com/{GRAPH_VERSION}"
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -25,10 +27,71 @@ def _next_day(d: str) -> str:
     return (date.fromisoformat(d) + timedelta(days=1)).isoformat()
 
 
-def _get(url: str, params: dict) -> dict:
-    r = requests.get(url, params=params, timeout=45)
-    r.raise_for_status()
-    return r.json()
+def _get(url: str, params: dict, retries: int = 3) -> dict:
+    """
+    GET with automatic retry (exponential backoff) and Portuguese error messages.
+    Raises immediately (no retry) on auth errors (401/403) and bad requests (400).
+    """
+    last_exc: Exception = ConnectionError("Falha ao conectar com a API Meta.")
+
+    for attempt in range(retries):
+        try:
+            r = requests.get(url, params=params, timeout=45)
+
+            if r.status_code == 429:
+                wait = 10 * (2 ** attempt)
+                time.sleep(wait)
+                last_exc = ConnectionError(
+                    "Limite de requisições da API Meta atingido. Aguarde e tente novamente."
+                )
+                continue
+
+            r.raise_for_status()
+            return r.json()
+
+        except requests.exceptions.Timeout:
+            last_exc = TimeoutError(
+                "A API Meta não respondeu no tempo limite. "
+                "Tente um período menor ou aguarde e tente novamente."
+            )
+
+        except requests.exceptions.HTTPError as e:
+            code = e.response.status_code if e.response is not None else 0
+            if code == 401:
+                raise PermissionError(
+                    "Token Meta inválido ou expirado (401). "
+                    "Renove o token em Meta for Developers e atualize os Secrets."
+                )
+            if code == 403:
+                raise PermissionError(
+                    "Sem permissão para acessar este recurso (403). "
+                    "Verifique se o token tem as permissões instagram_basic e ads_read."
+                )
+            if code == 400:
+                detail = ""
+                try:
+                    detail = e.response.json().get("error", {}).get("message", "")
+                except Exception:
+                    pass
+                raise ValueError(
+                    f"Requisição inválida para a API Meta (400). {detail}"
+                )
+            if code >= 500:
+                last_exc = ConnectionError(
+                    f"Servidor da Meta com instabilidade ({code}). Tentando novamente..."
+                )
+            else:
+                raise  # status inesperado — propaga direto
+
+        except requests.exceptions.ConnectionError:
+            last_exc = ConnectionError(
+                "Sem conexão com a API Meta. Verifique sua internet."
+            )
+
+        if attempt < retries - 1:
+            time.sleep(2 ** attempt)  # 1s, 2s entre tentativas
+
+    raise last_exc
 
 
 # ── Instagram ─────────────────────────────────────────────────────────────────
@@ -37,7 +100,6 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
     """Daily reach + interactions via Instagram Graph API."""
     ig_id = profile["instagram_id"]
     token = _token()
-    # 'until' is exclusive so we add 1 day to include date_to
     until = _next_day(date_to)
 
     by_date: dict = {}
@@ -56,9 +118,10 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
             for v in metric_obj.get("values", []):
                 d = v["end_time"][:10]
                 by_date.setdefault(d, {})[name] = v["value"]
+    except (PermissionError, ValueError):
+        raise
     except Exception:
-        # Reach data unavailable for this period (may happen for old date ranges)
-        pass
+        pass  # reach opcional para períodos antigos
 
     # ── Daily follower change ─────────────────────────────────────────────────
     try:
@@ -72,8 +135,10 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
         for v in fc_resp.get("data", [{}])[0].get("values", []):
             d = v["end_time"][:10]
             by_date.setdefault(d, {})["follower_count"] = v["value"]
+    except (PermissionError, ValueError):
+        raise
     except Exception:
-        pass  # follower_count opcional / só disponível nos últimos 30 dias
+        pass  # follower_count só disponível nos últimos 30 dias
 
     # ── Media-level engagement (likes, comments, saves, shares) ─────────────
     try:
@@ -97,8 +162,10 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
                     by_date[d]["saves"]  = by_date[d].get("saves", 0)  + val
                 elif ins["name"] == "shares":
                     by_date[d]["shares"] = by_date[d].get("shares", 0) + val
+    except (PermissionError, ValueError):
+        raise
     except Exception:
-        pass  # media insights optional
+        pass  # media insights opcionais
 
     # ── Build rows ───────────────────────────────────────────────────────────
     rows = []
@@ -125,13 +192,11 @@ def fetch_instagram_profile(profile: dict) -> dict:
     ig_id = profile["instagram_id"]
     token = _token()
 
-    # Basic profile data
     data = _get(f"{GRAPH}/{ig_id}", {
         "fields":       "followers_count,follows_count,media_count,username",
         "access_token": token,
     })
 
-    # Profile picture — optional, may not be available for all accounts
     picture_url = ""
     try:
         pic_data = _get(f"{GRAPH}/{ig_id}", {
@@ -139,8 +204,10 @@ def fetch_instagram_profile(profile: dict) -> dict:
             "access_token": token,
         })
         picture_url = pic_data.get("profile_picture_url", "")
+    except (PermissionError, ValueError):
+        raise
     except Exception:
-        pass
+        pass  # foto de perfil opcional
 
     return {
         "followers_count":     data.get("followers_count", 0),
@@ -161,7 +228,6 @@ def fetch_instagram_audience(profile: dict) -> dict:
     result = {"gender_age": {}, "countries": {}}
 
     # ── Gender + Age ──────────────────────────────────────────────────────────
-    # Attempt 1: new endpoint (Graph API v17+)
     try:
         resp = _get(f"{GRAPH}/{ig_id}/insights", {
             "metric":      "follower_demographics",
@@ -182,10 +248,11 @@ def fetch_instagram_audience(profile: dict) -> dict:
                             dv = res.get("dimension_values", [])
                             if len(dv) >= 2:
                                 result["gender_age"][f"{dv[gi]}.{dv[ai]}"] = res.get("value", 0)
+    except (PermissionError, ValueError):
+        raise
     except Exception:
         pass
 
-    # Attempt 2: legacy metric (pre-v17)
     if not result["gender_age"]:
         try:
             resp = _get(f"{GRAPH}/{ig_id}/insights", {
@@ -198,11 +265,12 @@ def fetch_instagram_audience(profile: dict) -> dict:
                     vals = m.get("values", [])
                     if vals:
                         result["gender_age"] = vals[-1].get("value", {})
+        except (PermissionError, ValueError):
+            raise
         except Exception:
             pass
 
     # ── Countries ─────────────────────────────────────────────────────────────
-    # Attempt 1: new endpoint
     try:
         resp = _get(f"{GRAPH}/{ig_id}/insights", {
             "metric":      "follower_demographics",
@@ -222,10 +290,11 @@ def fetch_instagram_audience(profile: dict) -> dict:
                             dv = res.get("dimension_values", [])
                             if dv:
                                 result["countries"][dv[ci]] = res.get("value", 0)
+    except (PermissionError, ValueError):
+        raise
     except Exception:
         pass
 
-    # Attempt 2: legacy metric
     if not result["countries"]:
         try:
             resp = _get(f"{GRAPH}/{ig_id}/insights", {
@@ -238,6 +307,8 @@ def fetch_instagram_audience(profile: dict) -> dict:
                     vals = m.get("values", [])
                     if vals:
                         result["countries"] = vals[-1].get("value", {})
+        except (PermissionError, ValueError):
+            raise
         except Exception:
             pass
 
@@ -245,51 +316,73 @@ def fetch_instagram_audience(profile: dict) -> dict:
 
 
 def fetch_instagram_top_posts(profile: dict, date_from: str, date_to: str) -> list:
-    """Top posts with media_type and full engagement metrics for ranking."""
+    """
+    Top posts with media_type and full engagement metrics.
+    Fetches up to 200 posts (2 pages of 100) and stores the full ISO timestamp
+    so the processor can compute best-hour-to-post analysis.
+    """
     ig_id = profile["instagram_id"]
     token = _token()
     until = _next_day(date_to)
-    posts = []
+    all_media = []
 
     try:
-        resp = _get(f"{GRAPH}/{ig_id}/media", {
-            "fields":       "id,timestamp,media_type,media_product_type,permalink,like_count,comments_count,insights.metric(saved,shares,reach,impressions)",
+        params = {
+            "fields":       "id,timestamp,media_type,media_product_type,permalink,"
+                            "like_count,comments_count,insights.metric(saved,shares,reach,impressions)",
             "since":        date_from,
             "until":        until,
-            "limit":        50,
+            "limit":        100,
             "access_token": token,
-        })
-        for m in resp.get("data", []):
-            post = {
-                "id":                m.get("id", ""),
-                "date":              (m.get("timestamp") or "")[:10],
-                "media_type":        m.get("media_type", "IMAGE"),
-                "media_product_type": m.get("media_product_type", ""),
-                "permalink":         m.get("permalink", ""),
-                "likes":             int(m.get("like_count") or 0),
-                "comments":          int(m.get("comments_count") or 0),
-                "saves":             0,
-                "shares":            0,
-                "reach":             0,
-                "impressions":       0,
-            }
-            for ins in (m.get("insights") or {}).get("data", []):
-                val  = int((ins.get("values") or [{}])[0].get("value") or 0)
-                name = ins.get("name", "")
-                if name == "saved":
-                    post["saves"] = val
-                elif name == "shares":
-                    post["shares"] = val
-                elif name == "reach":
-                    post["reach"] = val
-                elif name == "impressions":
-                    post["impressions"] = val
-            post["total_interactions"] = (
-                post["likes"] + post["comments"] + post["saves"] + post["shares"]
-            )
-            posts.append(post)
+        }
+        resp = _get(f"{GRAPH}/{ig_id}/media", params)
+        all_media = list(resp.get("data", []))
+
+        # Paginação: busca mais uma página se disponível (até 200 posts total)
+        next_url = resp.get("paging", {}).get("next", "")
+        if next_url:
+            try:
+                resp2 = _get(next_url, {})
+                all_media.extend(resp2.get("data", []))
+            except Exception:
+                pass  # segunda página opcional
+
+    except (PermissionError, ValueError):
+        raise
     except Exception:
         pass
+
+    posts = []
+    for m in all_media:
+        post = {
+            "id":                m.get("id", ""),
+            "timestamp":         m.get("timestamp", ""),        # ISO completo para análise de horário
+            "date":              (m.get("timestamp") or "")[:10],
+            "media_type":        m.get("media_type", "IMAGE"),
+            "media_product_type": m.get("media_product_type", ""),
+            "permalink":         m.get("permalink", ""),
+            "likes":             int(m.get("like_count") or 0),
+            "comments":          int(m.get("comments_count") or 0),
+            "saves":             0,
+            "shares":            0,
+            "reach":             0,
+            "impressions":       0,
+        }
+        for ins in (m.get("insights") or {}).get("data", []):
+            val  = int((ins.get("values") or [{}])[0].get("value") or 0)
+            name = ins.get("name", "")
+            if name == "saved":
+                post["saves"] = val
+            elif name == "shares":
+                post["shares"] = val
+            elif name == "reach":
+                post["reach"] = val
+            elif name == "impressions":
+                post["impressions"] = val
+        post["total_interactions"] = (
+            post["likes"] + post["comments"] + post["saves"] + post["shares"]
+        )
+        posts.append(post)
 
     return posts
 

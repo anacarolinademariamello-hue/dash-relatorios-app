@@ -543,6 +543,21 @@ def _paid_section(d: dict, report_type: str, uid: str) -> str:
         return ""
 
     camps = d["campaigns"]
+
+    # Estado vazio — sem campanhas no período
+    if not camps:
+        return (
+            '\n<section class="section">'
+            '\n<h2 class="section-title">💰 Análise de Tráfego Pago</h2>'
+            '\n<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;'
+            'padding:36px 24px;text-align:center;color:#6b7280;">'
+            '<div style="font-size:2rem;margin-bottom:12px;">📭</div>'
+            '<p style="font-weight:600;color:#374151;margin-bottom:6px;">Nenhuma campanha encontrada no período</p>'
+            '<p style="font-size:0.88rem;">Não há dados de Meta Ads para o intervalo selecionado. '
+            'Verifique se havia campanhas ativas nessas datas ou selecione o tipo <em>Só Orgânico</em>.</p>'
+            '\n</div></section>'
+        )
+
     rows_html = ""
     for c in camps:
         rows_html += (
@@ -875,18 +890,58 @@ def _recommendations(d: dict, report_type: str) -> str:
 </section>"""
 
 
-def _footer(profile: dict, d: dict) -> str:
+def _best_hours_section(d: dict) -> str:
+    """Cartão com os melhores horários para publicar, baseado nos posts do período."""
+    hours = d.get("best_hours", [])
+    if not hours:
+        return ""
+
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    items_html = ""
+    for i, h in enumerate(hours[:5]):
+        medal = medals[i] if i < len(medals) else "▪️"
+        items_html += (
+            f'<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;'
+            f'background:{"var(--pl)" if i==0 else "#f9fafb"};border-radius:8px;'
+            f'border:1px solid {"var(--border)" if i>0 else "var(--p2)"};margin-bottom:6px;">'
+            f'<span style="font-size:1.2rem;">{medal}</span>'
+            f'<span style="font-weight:{"700" if i==0 else "500"};color:var(--text);">'
+            f'{h["label"]}</span>'
+            f'<span style="margin-left:auto;font-size:.85rem;color:var(--muted);">'
+            f'~{h["avg_interactions"]:.0f} interações/post &nbsp;·&nbsp; {h["count"]} posts</span>'
+            f'</div>'
+        )
+
+    return f"""
+<section class="section">
+<h2 class="section-title">⏰ Melhores Horários para Publicar</h2>
+<p style="font-size:.88rem;color:var(--muted);margin-bottom:16px;">
+  Análise baseada nos {d.get("total_posts_fetched",0)} posts do período —
+  horários com maior engajamento médio (curtidas + comentários + saves + compartilhamentos):
+</p>
+<div style="max-width:520px;">{items_html}</div>
+<p style="font-size:.78rem;color:var(--muted);margin-top:10px;">
+  ⚠️ Horários em UTC+0. Considere o fuso horário da sua audiência ao agendar.
+</p>
+</section>"""
+
+
+def _footer(profile: dict, d: dict, generated_at: str = "") -> str:
+    gen_note = f" &nbsp;|&nbsp; Gerado em {generated_at}" if generated_at else ""
     return (
         '<footer class="site-footer">'
         f'<p>{profile["footer"]} &nbsp;|&nbsp; {profile["handle"]} &nbsp;|&nbsp; '
-        f'Período: {d["period_label"]} &nbsp;|&nbsp; Dados: Instagram Insights + Meta Ads Manager</p>'
+        f'Período: {d["period_label"]} &nbsp;|&nbsp; Dados: Instagram Insights + Meta Ads Manager{gen_note}</p>'
+        '<p style="font-size:0.75rem;opacity:0.65;margin-top:6px;">'
+        '📋 Documento confidencial — gerado exclusivamente para uso do cliente. Não compartilhar publicamente.'
+        '</p>'
         '</footer>'
     )
 
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
-def generate(profile: dict, data: dict, report_type: str = "Geral") -> str:
+def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at: str = "") -> str:
     import time
     uid = str(int(time.time() * 1000))[-6:]
     c   = profile["colors"]
@@ -928,11 +983,14 @@ def generate(profile: dict, data: dict, report_type: str = "Geral") -> str:
         # 8. Análise estratégica
         _strategic(data, report_type),
 
-        # 9. Recomendações feed + stories
+        # 9. Melhores horários para publicar
+        _best_hours_section(data) if report_type != "Só Pago" else "",
+
+        # 10. Recomendações feed + stories
         _recommendations(data, report_type),
 
         "</div>",
-        _footer(profile, data),
+        _footer(profile, data, generated_at),
         "<script>Chart.defaults.font.family=\"'Segoe UI',system-ui,sans-serif\";"
         "Chart.defaults.font.size=11;Chart.defaults.color='#6b7280';"
         "window.addEventListener('message',function(e){if(e.data&&e.data.type==='dash-print')window.print();});"

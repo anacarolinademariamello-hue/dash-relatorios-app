@@ -1,10 +1,13 @@
 import base64
-import streamlit as st
-import streamlit.components.v1 as components
+import csv
+import io
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta, datetime
 
-from src.profiles import PROFILES
+import streamlit as st
+import streamlit.components.v1 as components
 
+from src.profiles import PROFILES
 from src.api import (
     fetch_instagram_daily,
     fetch_instagram_profile,
@@ -14,6 +17,96 @@ from src.api import (
 )
 from src.processor import process
 from src.html_gen import generate
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def _fetch_all_data(profile_key: str, date_from: str, date_to: str, report_type: str) -> dict:
+    """
+    Busca todos os dados Meta em paralelo (5 requisições simultâneas).
+    Resultado em cache por 30 min — nova geração para o mesmo período
+    é instantânea até o token expirar ou o TTL vencer.
+    """
+    profile = PROFILES[profile_key]
+
+    tasks = [
+        ("ig_rows",      fetch_instagram_daily,    (profile, date_from, date_to)),
+        ("profile_info", fetch_instagram_profile,  (profile,)),
+        ("audience",     fetch_instagram_audience, (profile,)),
+        ("top_posts",    fetch_instagram_top_posts,(profile, date_from, date_to)),
+    ]
+    if report_type != "Só Orgânico":
+        tasks.append(("ads_rows", fetch_meta_ads_daily, (profile, date_from, date_to)))
+
+    defaults = {
+        "ig_rows":     [],
+        "profile_info":{},
+        "audience":    {"gender_age": {}, "countries": {}},
+        "top_posts":   [],
+        "ads_rows":    [],
+    }
+    results = dict(defaults)
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_key = {
+            executor.submit(fn, *args): key
+            for key, fn, args in tasks
+        }
+        for future in as_completed(future_to_key):
+            key = future_to_key[future]
+            try:
+                results[key] = future.result()
+            except (PermissionError, ValueError):
+                raise  # erros críticos de auth/config — propagar sempre
+            except Exception:
+                if key in ("ig_rows", "profile_info"):
+                    raise  # dados principais — propagar
+                results[key] = defaults[key]  # não-crítico — usa padrão
+
+    return results
+
+
+def _make_csv(data: dict) -> str:
+    """Gera CSV com métricas diárias + campanhas para download."""
+    output = io.StringIO()
+    w = csv.writer(output)
+
+    # Métricas diárias
+    w.writerow(["=== MÉTRICAS DIÁRIAS ==="])
+    w.writerow([
+        "Data", "Alcance Total", "Alcance Orgânico", "Alcance Pago",
+        "Curtidas", "Comentários", "Salvamentos", "Compartilhamentos",
+        "Interações Totais", "Seguidores Ganhos",
+    ])
+    labels = data.get("labels", [])
+    for i, label in enumerate(labels):
+        w.writerow([
+            label,
+            data["daily_reach"][i],
+            data["daily_organic_reach"][i],
+            data["daily_paid_reach"][i],
+            data["daily_likes"][i],
+            data["daily_comments"][i],
+            data["daily_saves"][i],
+            data["daily_shares"][i],
+            data["daily_interactions"][i],
+            data["daily_follower_change"][i],
+        ])
+
+    # Campanhas
+    if data.get("campaigns"):
+        w.writerow([])
+        w.writerow(["=== CAMPANHAS META ADS ==="])
+        w.writerow(["Campanha", "Objetivo", "Gasto (R$)", "Impressões",
+                    "Alcance", "Cliques", "CPM", "CPC", "CTR (%)"])
+        for c in data["campaigns"]:
+            w.writerow([
+                c["name"], c["objective"], c["spend"], c["impressions"],
+                c["reach"], c["clicks"], c["cpm"], c["cpc"], c["ctr"],
+            ])
+
+    return output.getvalue()
 
 # ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -275,46 +368,85 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ── Session state para persistir relatório ────────────────────────────────────
-if "report_html"  not in st.session_state: st.session_state.report_html  = None
-if "report_label" not in st.session_state: st.session_state.report_label = ""
-if "report_file"  not in st.session_state: st.session_state.report_file  = ""
+# ── Session state ─────────────────────────────────────────────────────────────
+for _k, _v in [("report_html", None), ("report_label", ""), ("report_file", ""),
+               ("report_data", None), ("report_config", "")]:
+    if _k not in st.session_state:
+        st.session_state[_k] = _v
+
+# ── Aviso de relatório desatualizado ──────────────────────────────────────────
+_current_config = f"{profile_name}|{date_from}|{date_to}|{report_type}"
+if st.session_state.report_html and st.session_state.report_config != _current_config:
+    st.warning("⚠️ As configurações mudaram. Clique em **Gerar Relatório** para atualizar.")
 
 if gerar:
-    # ── Validate ─────────────────────────────────────────────────────────────
+    # ── Validações ───────────────────────────────────────────────────────────
     if date_from > date_to:
         st.error("⚠️ A data inicial deve ser anterior à data final.")
         st.stop()
     if (date_to - date_from).days > 90:
-        st.warning("⚠️ Período muito longo pode demorar. Recomendado: até 90 dias.")
+        st.warning("⚠️ Período longo — pode demorar mais. Recomendado: até 90 dias.")
+
+    _max_lookback = date.today() - timedelta(days=730)
+    if date_from < _max_lookback:
+        st.warning("⚠️ A Meta limita o histórico a ~2 anos. Dados mais antigos podem estar incompletos.")
 
     profile       = PROFILES[profile_name]
     date_from_str = date_from.isoformat()
     date_to_str   = date_to.isoformat()
 
-    with st.spinner(f"⏳ Buscando dados de {profile['handle']}..."):
+    # ── Busca paralela com cache 30 min ──────────────────────────────────────
+    with st.spinner(f"⏳ Buscando dados de {profile['handle']} via Meta Graph API…"):
         try:
-            ig_rows      = fetch_instagram_daily(profile, date_from_str, date_to_str)
-            profile_info = fetch_instagram_profile(profile)
-            audience     = fetch_instagram_audience(profile)
-            top_posts    = fetch_instagram_top_posts(profile, date_from_str, date_to_str)
-            ads_rows     = fetch_meta_ads_daily(profile, date_from_str, date_to_str) \
-                           if report_type != "Só Orgânico" else []
+            fetched = _fetch_all_data(profile["key"], date_from_str, date_to_str, report_type)
+        except PermissionError as e:
+            st.error(f"🔐 {e}")
+            st.stop()
+        except ValueError as e:
+            st.error(f"❌ {e}")
+            st.stop()
+        except TimeoutError as e:
+            st.error(f"⏱️ {e}")
+            st.stop()
         except Exception as e:
-            st.error(f"❌ Erro ao buscar dados: {e}")
-            st.info("Verifique se o token Meta está configurado corretamente.")
+            msg = str(e).lower()
+            if "connection" in msg or "internet" in msg:
+                st.error("🌐 Sem conexão com a API Meta. Verifique sua internet.")
+            elif "timeout" in msg or "tempo" in msg:
+                st.error("⏱️ A API Meta não respondeu. Tente um período menor.")
+            elif "limite" in msg or "429" in msg:
+                st.error("⏳ Limite de requisições atingido. Aguarde 1 minuto e tente novamente.")
+            else:
+                st.error(f"❌ Erro ao buscar dados: {e}")
             st.stop()
 
+    ig_rows      = fetched["ig_rows"]
+    profile_info = fetched["profile_info"]
+    audience     = fetched["audience"]
+    top_posts    = fetched["top_posts"]
+    ads_rows     = fetched["ads_rows"]
+
     if not ig_rows:
-        st.warning("⚠️ Nenhum dado de alcance encontrado para o período selecionado.")
+        st.warning(
+            "⚠️ Nenhum dado de alcance encontrado para o período selecionado. "
+            "Tente estender o período ou verifique se há publicações nessas datas."
+        )
 
-    with st.spinner("🎨 Gerando relatório..."):
+    if len(top_posts) >= 100:
+        st.info("ℹ️ Foram encontrados mais de 100 posts — apenas os 100 mais recentes são analisados no ranking.")
+
+    with st.spinner("🎨 Gerando relatório…"):
         data = process(ig_rows, ads_rows, profile_info, audience, top_posts, date_from_str, date_to_str)
-        html = generate(profile, data, report_type)
+        html = generate(
+            profile, data, report_type,
+            generated_at=datetime.now().strftime("%d/%m/%Y às %H:%M"),
+        )
 
-    st.session_state.report_html  = html
-    st.session_state.report_label = f"✅ Relatório gerado — {profile['handle']} · {data['period_label']} · {report_type}"
-    st.session_state.report_file  = f"relatorio_{profile['key']}_{date_from_str}_{date_to_str}.html"
+    st.session_state.report_html   = html
+    st.session_state.report_data   = data
+    st.session_state.report_label  = f"✅ Relatório gerado — {profile['handle']} · {data['period_label']} · {report_type}"
+    st.session_state.report_file   = f"relatorio_{profile['key']}_{date_from_str}_{date_to_str}.html"
+    st.session_state.report_config = _current_config
 
 if not st.session_state.report_html:
     st.markdown("""
@@ -333,6 +465,18 @@ html = st.session_state.report_html
 
 # ── Render ────────────────────────────────────────────────────────────────────
 st.success(st.session_state.report_label)
+
+# Botão CSV (fora do iframe — download nativo do Streamlit)
+if st.session_state.report_data:
+    _csv_bytes = _make_csv(st.session_state.report_data).encode("utf-8-sig")  # utf-8-sig = abre certo no Excel
+    _csv_name  = st.session_state.report_file.replace(".html", ".csv")
+    st.download_button(
+        "📊 Baixar dados em CSV",
+        data=_csv_bytes,
+        file_name=_csv_name,
+        mime="text/csv",
+        help="Exporta métricas diárias e campanhas em formato CSV (compatível com Excel)",
+    )
 
 # ── Barra de ações injetada DENTRO do iframe do relatório ─────────────────────
 # Assim não há cross-origin: window.print() e blob URL funcionam diretamente.

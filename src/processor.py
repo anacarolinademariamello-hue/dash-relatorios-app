@@ -41,7 +41,7 @@ def _media_format(post: dict) -> str:
 
 def _process_audience(audience_data: dict) -> dict:
     """Process raw gender_age + countries into clean display-ready data."""
-    gender_age   = audience_data.get("gender_age", {})
+    gender_age    = audience_data.get("gender_age", {})
     countries_raw = audience_data.get("countries", {})
 
     # ── Gender + Age aggregation ──────────────────────────────────────────────
@@ -61,21 +61,18 @@ def _process_audience(audience_data: dict) -> dict:
         for k, v in gender_totals.items()
     }
 
-    # Age brackets in order
     age_order  = ["13-17", "18-24", "25-34", "35-44", "45-54", "55-64", "65+"]
     age_labels = [a for a in age_order if a in age_totals]
     age_values = [age_totals[a] for a in age_labels]
     total_age  = sum(age_values) or 1
     age_pcts   = [round(v / total_age * 100, 1) for v in age_values]
 
-    # Top countries (max 8)
     sorted_countries = sorted(countries_raw.items(), key=lambda x: -x[1])[:8]
     country_labels   = [COUNTRY_NAMES.get(c[0], c[0]) for c in sorted_countries]
     country_values   = [c[1] for c in sorted_countries]
     total_countries  = sum(country_values) or 1
     country_pcts     = [round(v / total_countries * 100, 1) for v in country_values]
 
-    # Dominant age bracket
     dominant_age = age_labels[age_pcts.index(max(age_pcts))] if age_pcts else "—"
 
     return {
@@ -97,11 +94,9 @@ def _process_top_posts(top_posts: list, followers: int) -> dict:
     if not top_posts:
         return {"formats": [], "top_posts": [], "best_format": None, "has_data": False}
 
-    # Attach friendly format name to each post
     for post in top_posts:
         post["format"] = _media_format(post)
 
-    # Group by format
     by_format: dict = {}
     for post in top_posts:
         fmt = post["format"]
@@ -120,19 +115,16 @@ def _process_top_posts(top_posts: list, followers: int) -> dict:
         avg_eng  = round(avg_int / avg_r * 100, 2)          if avg_r else 0
         avg_save = round(stats["total_saves"] / cnt)        if cnt else 0
         formats.append({
-            "name":              fmt,
-            "count":             cnt,
-            "avg_reach":         avg_r,
-            "avg_interactions":  avg_int,
-            "avg_eng_rate":      avg_eng,
-            "avg_saves":         avg_save,
+            "name":             fmt,
+            "count":            cnt,
+            "avg_reach":        avg_r,
+            "avg_interactions": avg_int,
+            "avg_eng_rate":     avg_eng,
+            "avg_saves":        avg_save,
         })
     formats.sort(key=lambda x: -x["avg_interactions"])
 
-    # Best format by avg interactions
     best_format = formats[0]["name"] if formats else None
-
-    # Top 10 posts by total_interactions
     top10 = sorted(top_posts, key=lambda x: -x.get("total_interactions", 0))[:10]
 
     return {
@@ -141,6 +133,42 @@ def _process_top_posts(top_posts: list, followers: int) -> dict:
         "best_format": best_format,
         "has_data":    len(top_posts) > 0,
     }
+
+
+def _best_hour_to_post(top_posts: list) -> list:
+    """
+    Analisa os timestamps completos dos posts para encontrar os melhores
+    horários de publicação com base no engajamento médio.
+    Retorna lista ordenada por avg_interactions (melhor primeiro).
+    Só considerado relevante se houver >= 5 posts com timestamp.
+    """
+    hour_stats = defaultdict(lambda: {"count": 0, "total": 0})
+
+    for post in top_posts:
+        ts = post.get("timestamp", "")
+        # Timestamp ISO: "2024-03-15T14:30:00+0000"
+        if "T" in ts and len(ts) >= 13:
+            try:
+                hour = int(ts[11:13])
+                hour_stats[hour]["count"] += 1
+                hour_stats[hour]["total"] += post.get("total_interactions", 0)
+            except (ValueError, IndexError):
+                pass
+
+    if sum(s["count"] for s in hour_stats.values()) < 5:
+        return []  # dados insuficientes para análise confiável
+
+    result = []
+    for hour, stats in hour_stats.items():
+        avg = round(stats["total"] / stats["count"], 1) if stats["count"] else 0
+        result.append({
+            "hour":             hour,
+            "label":            f"{hour:02d}h",
+            "avg_interactions": avg,
+            "count":            stats["count"],
+        })
+    result.sort(key=lambda x: -x["avg_interactions"])
+    return result[:5]  # top 5 horários
 
 
 def process(ig_rows: list, ads_rows: list, profile_info: dict,
@@ -153,20 +181,20 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
     labels   = [_fmt_label(d) for d in days]
     day_keys = [d.isoformat() for d in days]
 
-    # ── Instagram daily ──────────────────────────────────────────────
+    # ── Instagram daily ──────────────────────────────────────────────────────
     ig_by_date = {}
     for row in ig_rows:
         k = row.get("date", "")[:10]
         if k:
             ig_by_date[k] = row
 
-    daily_reach            = []
-    daily_likes            = []
-    daily_comments         = []
-    daily_saves            = []
-    daily_shares           = []
-    daily_interactions     = []
-    daily_follower_change  = []
+    daily_reach           = []
+    daily_likes           = []
+    daily_comments        = []
+    daily_saves           = []
+    daily_shares          = []
+    daily_interactions    = []
+    daily_follower_change = []
 
     for k in day_keys:
         r = ig_by_date.get(k, {})
@@ -178,17 +206,15 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
         daily_interactions.append(int(r.get("total_interactions") or 0))
         daily_follower_change.append(int(r.get("follower_count") or 0))
 
-    # ── Meta Ads daily ───────────────────────────────────────────────
+    # ── Meta Ads daily ───────────────────────────────────────────────────────
     ads_by_date = defaultdict(list)
     for row in ads_rows:
         k = row.get("date", "")[:10]
         if k:
             ads_by_date[k].append(row)
 
-    # Campaign aggregates
     camp_totals = defaultdict(lambda: {
-        "objective": "", "spend": 0.0, "impressions": 0,
-        "reach": 0, "clicks": 0,
+        "objective": "", "spend": 0.0, "impressions": 0, "reach": 0, "clicks": 0,
     })
     for row in ads_rows:
         cn = row.get("campaign_name") or "Sem nome"
@@ -206,9 +232,8 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
         cl  = t["clicks"]
         re  = t["reach"]
         cpm = round(sp / im * 1000, 2) if im else 0
-        cpc = round(sp / cl, 2)        if cl else 0
-        ctr = round(cl / im * 100, 2)  if im else 0
-        # Status heuristic
+        cpc = round(sp / cl,        2) if cl else 0
+        ctr = round(cl / im * 100,  2) if im else 0
         if ctr >= 4.0:
             status = "best"
         elif ctr >= 2.5:
@@ -224,18 +249,16 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
             "status": status,
         })
 
-    # Daily paid reach + spend
     daily_paid_reach = []
     daily_spend      = []
     for k in day_keys:
         rows_day = ads_by_date.get(k, [])
-        daily_paid_reach.append(sum(int(r.get("reach") or 0)   for r in rows_day))
+        daily_paid_reach.append(sum(int(r.get("reach") or 0)    for r in rows_day))
         daily_spend.append(round(sum(float(r.get("spend") or 0) for r in rows_day), 2))
 
-    # Organic reach = total reach - paid (floor 0)
     daily_organic_reach = [max(0, daily_reach[i] - daily_paid_reach[i]) for i in range(len(days))]
 
-    # ── Totals ───────────────────────────────────────────────────────
+    # ── Totals ───────────────────────────────────────────────────────────────
     total_reach        = sum(daily_reach)
     total_organic      = sum(daily_organic_reach)
     total_paid_reach   = sum(daily_paid_reach)
@@ -248,64 +271,65 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
     total_impressions  = sum(c["impressions"] for c in campaigns)
     total_clicks       = sum(c["clicks"]      for c in campaigns)
 
-    organic_pct  = round(total_organic / total_reach * 100, 1)   if total_reach else 0
+    organic_pct  = round(total_organic / total_reach * 100, 1)        if total_reach        else 0
     paid_pct     = round(100 - organic_pct, 1)
-    org_eng_rate = round(total_interactions / total_organic * 100, 2) if total_organic else 0
-    avg_cpm      = round(total_spend / total_impressions * 1000, 2)   if total_impressions else 0
-    avg_cpc      = round(total_spend / total_clicks, 2)               if total_clicks else 0
+    org_eng_rate = round(total_interactions / total_organic * 100, 2)  if total_organic      else 0
+    avg_cpm      = round(total_spend / total_impressions * 1000, 2)    if total_impressions  else 0
+    avg_cpc      = round(total_spend / total_clicks, 2)                if total_clicks       else 0
 
     followers   = int(profile_info.get("followers_count") or 0)
-    following   = int(profile_info.get("follows_count") or 0)
-    media       = int(profile_info.get("media_count") or 0)
+    following   = int(profile_info.get("follows_count")   or 0)
+    media       = int(profile_info.get("media_count")     or 0)
     picture_url = profile_info.get("profile_picture_url", "")
 
-    # Followers gained in period
+    # ── Followers gained ─────────────────────────────────────────────────────
     followers_gained = sum(daily_follower_change)
 
-    # Paid followers estimate from traffic/profile campaigns
+    # Estimativa de seguidores vindos de campanhas de tráfego
     traffic_clicks = sum(
         c["clicks"] for c in campaigns
         if any(w in c["name"].lower() for w in ("tráfego", "perfil", "traffic", "seguidores"))
     )
     followers_paid_est = max(0, int(traffic_clicks * 0.28))
 
-    if followers_gained > 0:
+    if followers_gained >= 0:
         followers_organic_est = max(0, followers_gained - followers_paid_est)
     else:
-        followers_gained      = followers_paid_est
+        # Perda líquida de seguidores — mostra o número real sem sobrescrever
         followers_organic_est = 0
 
-    cost_per_follower = round(total_spend / max(1, followers_paid_est), 2) if total_spend else 0
-    new_followers_est = followers_gained
+    cost_per_follower = round(total_spend / max(1, followers_paid_est), 2) if total_spend and followers_paid_est else 0
+    new_followers_est = max(0, followers_gained)
 
-    # Posting frequency
+    # ── Posting frequency ────────────────────────────────────────────────────
     posting_days = sum(1 for k in day_keys if any(
         (p.get("date") or "")[:10] == k for p in top_posts
     ))
 
     period_label = f"{labels[0]} – {labels[-1]} {days[0].year}"
 
-    # ── Audience + Content Analysis ──────────────────────────────────
+    # ── Audience + Content + Hours analysis ──────────────────────────────────
     audience_analysis  = _process_audience(audience_data)
     content_analysis   = _process_top_posts(top_posts, followers)
+    best_hours         = _best_hour_to_post(top_posts)
 
     return {
-        "labels": labels,
-        "days": len(days),
+        "labels":       labels,
+        "days":         len(days),
         "period_label": period_label,
-        "date_from": date_from,
-        "date_to": date_to,
+        "date_from":    date_from,
+        "date_to":      date_to,
         # Instagram profile
-        "followers": followers,
-        "following": following,
-        "media": media,
-        "picture_url": picture_url,
+        "followers":    followers,
+        "following":    following,
+        "media":        media,
+        "picture_url":  picture_url,
         # Followers
-        "followers_gained":       followers_gained,
-        "followers_organic_est":  followers_organic_est,
-        "followers_paid_est":     followers_paid_est,
-        "new_followers_est":      new_followers_est,
-        "cost_per_follower":      cost_per_follower,
+        "followers_gained":      followers_gained,
+        "followers_organic_est": followers_organic_est,
+        "followers_paid_est":    followers_paid_est,
+        "new_followers_est":     new_followers_est,
+        "cost_per_follower":     cost_per_follower,
         # Reach
         "total_reach":      total_reach,
         "total_organic":    total_organic,
@@ -320,12 +344,12 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
         "total_shares":       total_shares,
         "org_eng_rate":       org_eng_rate,
         # Paid
-        "total_spend":      total_spend,
+        "total_spend":       total_spend,
         "total_impressions": total_impressions,
-        "total_clicks":     total_clicks,
-        "avg_cpm":          avg_cpm,
-        "avg_cpc":          avg_cpc,
-        "campaigns":        campaigns,
+        "total_clicks":      total_clicks,
+        "avg_cpm":           avg_cpm,
+        "avg_cpc":           avg_cpc,
+        "campaigns":         campaigns,
         # Daily arrays
         "daily_reach":           daily_reach,
         "daily_organic_reach":   daily_organic_reach,
@@ -337,8 +361,10 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
         "daily_interactions":    daily_interactions,
         "daily_spend":           daily_spend,
         "daily_follower_change": daily_follower_change,
-        # Content analysis
-        "posting_days":      posting_days,
-        "audience":          audience_analysis,
-        "content":           content_analysis,
+        # Content + audience
+        "posting_days":        posting_days,
+        "total_posts_fetched": len(top_posts),
+        "audience":            audience_analysis,
+        "content":             content_analysis,
+        "best_hours":          best_hours,
     }
