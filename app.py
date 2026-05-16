@@ -1,7 +1,7 @@
 import base64
 import streamlit as st
 import streamlit.components.v1 as components
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 
 from src.profiles import PROFILES
 from src.api import (
@@ -184,6 +184,37 @@ with st.sidebar:
     gerar = st.button("🚀 Gerar Relatório", use_container_width=True)
 
     st.markdown("---")
+
+    # ── Aviso de expiração do token Meta ──────────────────────────────────────
+    try:
+        token_created_str = st.secrets.get("meta_token_created", "")
+        if token_created_str:
+            token_created = datetime.strptime(token_created_str, "%Y-%m-%d").date()
+            token_expires = token_created + timedelta(days=60)
+            days_left = (token_expires - date.today()).days
+            if days_left <= 0:
+                st.markdown(
+                    "<div style='background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;"
+                    "padding:10px 12px;font-size:.78rem;color:#991b1b;margin-bottom:8px;'>"
+                    "🔴 <strong>Token Meta expirado!</strong><br>Renove o token para gerar relatórios.</div>",
+                    unsafe_allow_html=True,
+                )
+            elif days_left <= 10:
+                st.markdown(
+                    f"<div style='background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;"
+                    f"padding:10px 12px;font-size:.78rem;color:#92400e;margin-bottom:8px;'>"
+                    f"⚠️ <strong>Token expira em {days_left} dias</strong><br>"
+                    f"Renove antes de {token_expires.strftime('%d/%m/%Y')}.</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    f"<small style='opacity:.45;font-size:.7rem;'>🔑 Token válido por mais {days_left} dias</small>",
+                    unsafe_allow_html=True,
+                )
+    except Exception:
+        pass
+
     st.markdown(
         "<small style='opacity:.55'>Os dados são buscados em tempo real<br>via Instagram Insights + Meta Ads</small>",
         unsafe_allow_html=True,
