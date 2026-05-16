@@ -99,6 +99,40 @@ st.markdown("""
 }
 
 div[data-testid="stSidebarNav"] {display:none;}
+
+/* ── Main area ─────────────────────────────────────────── */
+.main .block-container {
+    padding-top: 1.5rem;
+    padding-bottom: 3rem;
+    max-width: 1100px;
+    background: #f0f3f8;
+}
+.page-header {
+    background: linear-gradient(135deg, #003f7c 0%, #1a5a9a 60%, #0d4080 100%);
+    border-radius: 16px;
+    padding: 26px 32px;
+    color: #fff;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+}
+.page-header::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 85% 15%, rgba(255,255,255,0.10) 0%, transparent 60%);
+    pointer-events: none;
+}
+.page-header-title { font-size: 1.45rem; font-weight: 700; color: #fff; margin-bottom: 4px; }
+.page-header-sub   { font-size: 0.88rem; color: rgba(255,255,255,0.62); }
+.welcome-card {
+    background: #fff;
+    border: 1px solid #dde3ed;
+    border-radius: 16px;
+    padding: 48px 32px;
+    text-align: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -156,15 +190,21 @@ with st.sidebar:
     )
 
 # ── Main area ─────────────────────────────────────────────────────────────────
+st.markdown("""
+<div class="page-header">
+    <div class="page-header-title">📊 Gerador de Relatórios · Meta</div>
+    <div class="page-header-sub">Selecione o perfil e o período na barra lateral, depois clique em Gerar Relatório</div>
+</div>
+""", unsafe_allow_html=True)
+
 if not gerar:
     st.markdown("""
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
-                padding:80px 20px;color:#6b7280;text-align:center;">
-        <div style="font-size:4rem;margin-bottom:16px;">📊</div>
-        <h2 style="color:#003f7c;margin-bottom:8px;">Gerador de Relatórios</h2>
-        <p style="max-width:400px;line-height:1.6;">
-            Selecione o perfil, o período e o tipo de relatório na barra lateral,
-            depois clique em <strong>Gerar Relatório</strong>.
+    <div class="welcome-card">
+        <div style="font-size:3.5rem;margin-bottom:16px;">📊</div>
+        <h2 style="color:#003f7c;margin-bottom:8px;font-size:1.4rem;font-weight:700;">Pronto para gerar seu relatório</h2>
+        <p style="max-width:420px;line-height:1.7;color:#6b7280;margin:0 auto;">
+            Selecione o <strong>perfil</strong>, o <strong>período</strong> e o <strong>tipo de relatório</strong>
+            na barra lateral, depois clique em <strong>Gerar Relatório</strong>.
         </p>
     </div>
     """, unsafe_allow_html=True)
