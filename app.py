@@ -283,23 +283,49 @@ with st.spinner("🎨 Gerando relatório..."):
 # ── Render ────────────────────────────────────────────────────────────────────
 st.success(f"✅ Relatório gerado — {profile['handle']} · {data['period_label']} · {report_type}")
 
-# Download button
-col_dl, col_hint = st.columns([1, 2])
+# Botões de ação
+filename = f"relatorio_{profile['key']}_{date_from_str}_{date_to_str}.html"
+col_dl, col_pdf, _ = st.columns([1, 1, 2])
 with col_dl:
-    filename = f"relatorio_{profile['key']}_{date_from_str}_{date_to_str}.html"
     st.download_button(
-        "⬇ Baixar Relatório",
+        "📂 Abrir HTML",
         data=html.encode("utf-8"),
         file_name=filename,
         mime="text/html",
         use_container_width=True,
     )
-with col_hint:
-    st.markdown(
-        "<div style='padding:9px 0;font-size:0.8rem;color:#6b7280;'>"
-        "📄 Para salvar como <strong>PDF</strong>: use o botão <strong>🖨️ Salvar como PDF</strong> que aparece dentro do relatório abaixo.</div>",
-        unsafe_allow_html=True,
-    )
+with col_pdf:
+    st.markdown("""
+<style>
+.btn-pdf-wrap > button {
+    width:100%;padding:.45rem .9rem;
+    background:linear-gradient(135deg,#003f7c,#1a5a9a)!important;
+    color:#fff!important;border:none!important;border-radius:.5rem!important;
+    font-size:.9rem!important;font-weight:600!important;cursor:pointer;
+    transition:all .2s;line-height:1.6;
+}
+.btn-pdf-wrap > button:hover {
+    background:linear-gradient(135deg,#1a5a9a,#2468b0)!important;
+    transform:translateY(-1px);
+}
+</style>
+<div class="btn-pdf-wrap">
+<button onclick="
+  var frames = document.querySelectorAll('iframe');
+  var ok = false;
+  for(var i=0;i<frames.length;i++){
+    try{
+      var d = frames[i].contentDocument;
+      if(d && d.querySelector('.site-header')){
+        frames[i].contentWindow.print();
+        ok=true; break;
+      }
+    }catch(e){}
+  }
+  if(!ok) alert('Aguarde o relatório carregar e tente novamente.');
+">🖨️ Salvar como PDF</button>
+</div>
+""", unsafe_allow_html=True)
 
 components.html(html, height=5000, scrolling=True)
 
