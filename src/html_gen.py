@@ -105,6 +105,9 @@ tbody td{{padding:12px 16px;color:#374151;white-space:nowrap;}}
 .site-footer{{background:var(--p);color:rgba(255,255,255,0.75);text-align:center;padding:28px 24px;font-size:0.85rem;margin-top:48px;}}
 .site-footer strong{{color:var(--a);}}
 @media(max-width:768px){{.chart-row.cols-2,.chart-row.cols-3,.analysis-grid{{grid-template-columns:1fr;}}}}
+.pdf-btn{{position:fixed;top:18px;right:18px;background:linear-gradient(135deg,#003f7c,#1a5a9a);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:0.88rem;font-weight:700;cursor:pointer;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.3);display:flex;align-items:center;gap:7px;transition:all .2s;}}
+.pdf-btn:hover{{background:linear-gradient(135deg,#1a5a9a,#2468b0);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,0.35);}}
+@media print{{.pdf-btn{{display:none!important;}}body{{background:#fff!important;}}}}
 </style>"""
 
 
@@ -882,6 +885,7 @@ def generate(profile: dict, data: dict, report_type: str = "Geral") -> str:
         "<script src='https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'></script>",
         _css(c),
         "</head><body>",
+        "<button class='pdf-btn' onclick='window.print()'>🖨️ Salvar como PDF</button>",
         _header(profile, data),
         "<div class='container'>",
 

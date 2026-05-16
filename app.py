@@ -1,3 +1,4 @@
+import base64
 import streamlit as st
 import streamlit.components.v1 as components
 from datetime import date, timedelta
@@ -101,9 +102,28 @@ div[data-testid="stSidebarNav"] {display:none;}
 </style>
 """, unsafe_allow_html=True)
 
+# ── Logo ─────────────────────────────────────────────────────────────────────
+def _get_logo_b64() -> str:
+    try:
+        with open("assets/logo.png", "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except Exception:
+        return ""
+
+_logo_b64 = _get_logo_b64()
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("### 📊 Dash Digital")
+    if _logo_b64:
+        st.markdown(
+            f'<div style="padding:12px 4px 8px;">'
+            f'<img src="data:image/png;base64,{_logo_b64}" '
+            f'style="height:38px;background:white;border-radius:8px;padding:3px 10px;">'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown("### 📊 Dash Digital")
     st.markdown("**Gerador de Relatórios**")
     st.markdown("---")
 
@@ -204,3 +224,9 @@ with col_dl:
     )
 
 components.html(html, height=5000, scrolling=True)
+
+st.markdown(
+    '<p style="text-align:center;font-size:.72rem;color:#9ca3af;margin-top:16px;">'
+    "Desenvolvido por Dash Digital · @dashdgt · Todos os direitos reservados</p>",
+    unsafe_allow_html=True,
+)
