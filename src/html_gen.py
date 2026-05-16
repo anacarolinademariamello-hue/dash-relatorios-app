@@ -107,7 +107,19 @@ tbody td{{padding:12px 16px;color:#374151;white-space:nowrap;}}
 @media(max-width:768px){{.chart-row.cols-2,.chart-row.cols-3,.analysis-grid{{grid-template-columns:1fr;}}}}
 .pdf-btn{{position:fixed;top:18px;right:18px;background:linear-gradient(135deg,#003f7c,#1a5a9a);color:#fff;border:none;border-radius:10px;padding:10px 20px;font-size:0.88rem;font-weight:700;cursor:pointer;z-index:9999;box-shadow:0 4px 16px rgba(0,0,0,0.3);display:flex;align-items:center;gap:7px;transition:all .2s;}}
 .pdf-btn:hover{{background:linear-gradient(135deg,#1a5a9a,#2468b0);transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,0.35);}}
-@media print{{.pdf-btn{{display:none!important;}}body{{background:#fff!important;}}}}
+@media print{{
+  *{{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}
+  .pdf-btn{{display:none!important;}}
+  body{{background:#fff!important;margin:0;padding:0;}}
+  .site-header{{background:linear-gradient(135deg,var(--p) 0%,var(--p2) 60%,{c['header_end']} 100%)!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}
+  .site-header *{{color:#fff!important;}}
+  .section-title{{color:var(--p)!important;}}
+  .container{{max-width:100%!important;padding:0 12px!important;}}
+  .section{{page-break-inside:avoid;}}
+  .kpi-grid{{page-break-inside:avoid;}}
+  .chart-box{{page-break-inside:avoid;}}
+  .post-table{{page-break-inside:avoid;}}
+}}
 </style>"""
 
 
