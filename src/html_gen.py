@@ -885,8 +885,7 @@ def generate(profile: dict, data: dict, report_type: str = "Geral") -> str:
         "<script src='https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js'></script>",
         _css(c),
         "</head><body>",
-        "<button class='pdf-btn' onclick='abrirParaPDF()'>📄 Salvar como PDF</button>",
-        "<script>function abrirParaPDF(){var h=document.documentElement.outerHTML;var b=new Blob([h],{type:'text/html;charset=utf-8'});var u=URL.createObjectURL(b);var w=window.open(u,'_blank');if(!w){alert('Permita pop-ups para este site e tente novamente.');}}</script>",
+        "<button class='pdf-btn' onclick='window.print()'>🖨️ Salvar como PDF</button>",
         _header(profile, data),
         "<div class='container'>",
 

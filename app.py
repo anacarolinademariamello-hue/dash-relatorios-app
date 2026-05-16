@@ -283,15 +283,21 @@ with st.spinner("🎨 Gerando relatório..."):
 st.success(f"✅ Relatório gerado — {profile['handle']} · {data['period_label']} · {report_type}")
 
 # Download button
-col_dl, _ = st.columns([1, 4])
+col_dl, col_hint, _ = st.columns([1, 3, 1])
 with col_dl:
     filename = f"relatorio_{profile['key']}_{date_from_str}_{date_to_str}.html"
     st.download_button(
-        "⬇ Baixar HTML",
+        "⬇ Baixar Relatório",
         data=html.encode("utf-8"),
         file_name=filename,
         mime="text/html",
         use_container_width=True,
+    )
+with col_hint:
+    st.markdown(
+        "<div style='padding:8px 0;font-size:0.8rem;color:#6b7280;line-height:1.4;'>"
+        "💡 Para salvar como <strong>PDF</strong>: baixe o arquivo, abra no navegador e clique em <strong>🖨️ Salvar como PDF</strong></div>",
+        unsafe_allow_html=True,
     )
 
 components.html(html, height=5000, scrolling=True)
