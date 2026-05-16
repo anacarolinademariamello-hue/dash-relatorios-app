@@ -1,41 +1,10 @@
 import base64
-import subprocess
-import sys
 import streamlit as st
 import streamlit.components.v1 as components
 from datetime import date, timedelta, datetime
 
 from src.profiles import PROFILES
 
-# ── Playwright setup (roda uma vez) ───────────────────────────────────────────
-@st.cache_resource(show_spinner=False)
-def _setup_playwright():
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "playwright", "install", "chromium", "--with-deps"],
-            capture_output=True, timeout=300
-        )
-        return True
-    except Exception:
-        return False
-
-def _html_to_pdf(html: str) -> bytes | None:
-    try:
-        _setup_playwright()
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as p:
-            browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
-            page = browser.new_page(viewport={"width": 1200, "height": 900})
-            page.set_content(html, wait_until="networkidle", timeout=30000)
-            pdf = page.pdf(
-                format="A4",
-                print_background=True,
-                margin={"top": "1.5cm", "bottom": "1.5cm", "left": "1cm", "right": "1cm"},
-            )
-            browser.close()
-        return pdf
-    except Exception:
-        return None
 from src.api import (
     fetch_instagram_daily,
     fetch_instagram_profile,
@@ -314,40 +283,23 @@ with st.spinner("🎨 Gerando relatório..."):
 # ── Render ────────────────────────────────────────────────────────────────────
 st.success(f"✅ Relatório gerado — {profile['handle']} · {data['period_label']} · {report_type}")
 
-# Download buttons
-base_filename = f"relatorio_{profile['key']}_{date_from_str}_{date_to_str}"
-col_dl, col_pdf = st.columns(2)
-
+# Download button
+col_dl, col_hint = st.columns([1, 2])
 with col_dl:
+    filename = f"relatorio_{profile['key']}_{date_from_str}_{date_to_str}.html"
     st.download_button(
-        "⬇ Baixar HTML",
+        "⬇ Baixar Relatório",
         data=html.encode("utf-8"),
-        file_name=f"{base_filename}.html",
+        file_name=filename,
         mime="text/html",
         use_container_width=True,
     )
-
-with col_pdf:
-    with st.spinner("Gerando PDF..."):
-        pdf_bytes = _html_to_pdf(html)
-
-    if pdf_bytes:
-        st.download_button(
-            "📄 Baixar PDF",
-            data=pdf_bytes,
-            file_name=f"{base_filename}.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-        )
-    else:
-        st.download_button(
-            "📄 PDF indisponível",
-            data=b"",
-            file_name="erro.pdf",
-            mime="application/pdf",
-            use_container_width=True,
-            disabled=True,
-        )
+with col_hint:
+    st.markdown(
+        "<div style='padding:9px 0;font-size:0.8rem;color:#6b7280;'>"
+        "📄 Para salvar como <strong>PDF</strong>: use o botão <strong>🖨️ Salvar como PDF</strong> que aparece dentro do relatório abaixo.</div>",
+        unsafe_allow_html=True,
+    )
 
 components.html(html, height=5000, scrolling=True)
 
