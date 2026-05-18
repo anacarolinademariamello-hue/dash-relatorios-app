@@ -624,6 +624,53 @@ _action_bar = (
 html_rendered = html.replace("<body>", "<body>" + _action_bar, 1)
 components.html(html_rendered, height=5000, scrolling=True)
 
+# ── Histórico de relatórios ───────────────────────────────────────────────────
+_profile_key = _load_profiles().get(profile_name, {}).get("key")
+
+if _profile_key:
+    _history = supabase_db.get_history_list(_profile_key, limit=12)
+    if _history:
+        with st.expander("📈 Evolução Histórica — Relatórios Anteriores", expanded=False):
+            import pandas as pd
+
+            # Monta DataFrame
+            rows_h = []
+            for h in reversed(_history):  # cronológico
+                m = h.get("metrics", {})
+                rows_h.append({
+                    "Período":       f"{h['date_from'][5:]}→{h['date_to'][5:]}",
+                    "Alcance Total": int(m.get("total_reach", 0)),
+                    "Orgânico":      int(m.get("total_organic", 0)),
+                    "Interações":    int(m.get("total_interactions", 0)),
+                    "Engaj. %":      round(float(m.get("org_eng_rate", 0)), 2),
+                    "Seguidores +":  int(m.get("followers_gained", 0)),
+                    "Gasto R$":      round(float(m.get("total_spend", 0)), 2),
+                    "Tipo":          h.get("report_type", ""),
+                })
+            df_h = pd.DataFrame(rows_h)
+
+            # Gráfico de linha — Alcance e Interações
+            st.markdown("**Alcance Total & Interações por período**")
+            st.line_chart(
+                df_h.set_index("Período")[["Alcance Total", "Interações"]],
+                use_container_width=True,
+            )
+
+            # Gráfico de linha — Engajamento orgânico
+            st.markdown("**Taxa de Engajamento Orgânico (%)**")
+            st.line_chart(
+                df_h.set_index("Período")[["Engaj. %"]],
+                use_container_width=True,
+            )
+
+            # Tabela completa
+            st.markdown("**Tabela de todos os períodos**")
+            st.dataframe(
+                df_h.drop(columns=["Tipo"]),
+                use_container_width=True,
+                hide_index=True,
+            )
+
 st.markdown(
     '<p style="text-align:center;font-size:.72rem;color:#9ca3af;margin-top:16px;">'
     "Desenvolvido por Dash Digital · @dashdgt · Todos os direitos reservados</p>",
