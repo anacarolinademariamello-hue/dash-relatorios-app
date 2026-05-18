@@ -98,6 +98,7 @@ def get_clients() -> dict:
                 ),
                 "colors": colors,
                 "goals":  goals,
+                "nicho":  r.get("nicho") or "",
             }
         return profiles
     except Exception:
@@ -159,6 +160,29 @@ def save_report_metrics(
     if not is_configured():
         return False
 
+    # Formatos de conteúdo — top 5 com métricas de performance
+    content_formats = [
+        {
+            "type":             f.get("type", ""),
+            "count":            f.get("count", 0),
+            "avg_reach":        round(f.get("avg_reach", 0), 1),
+            "avg_interactions": round(f.get("avg_interactions", 0), 1),
+            "avg_eng_rate":     round(f.get("avg_eng_rate", 0), 2),
+            "avg_saves":        round(f.get("avg_saves", 0), 1),
+        }
+        for f in data.get("content", {}).get("formats", [])[:5]
+    ]
+
+    # Melhores horários — top 3
+    best_hours = [
+        {
+            "label":            h.get("label", ""),
+            "avg_interactions": round(h.get("avg_interactions", 0), 1),
+            "count":            h.get("count", 0),
+        }
+        for h in data.get("best_hours", [])[:3]
+    ]
+
     metrics = {
         "total_reach":        data.get("total_reach", 0),
         "total_organic":      data.get("total_organic", 0),
@@ -173,12 +197,16 @@ def save_report_metrics(
         "org_eng_rate":       data.get("org_eng_rate", 0),
         "total_spend":        data.get("total_spend", 0),
         "total_clicks":       data.get("total_clicks", 0),
+        "avg_ctr":            data.get("avg_ctr", 0),
         "organic_pct":        data.get("organic_pct", 0),
         "paid_pct":           data.get("paid_pct", 0),
         "avg_cpm":            data.get("avg_cpm", 0),
         "avg_cpc":            data.get("avg_cpc", 0),
         "posting_days":       data.get("posting_days", 0),
         "days":               data.get("days", 0),
+        "best_format":        data.get("content", {}).get("best_format", ""),
+        "content_formats":    content_formats,
+        "best_hours":         best_hours,
     }
 
     payload = {

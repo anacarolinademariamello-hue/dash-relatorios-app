@@ -637,10 +637,64 @@ def _paid_section(d: dict, report_type: str, uid: str) -> str:
     )
 
 
-def _strategic(d: dict, report_type: str) -> str:
+_NICHE_STRATEGIC = {
+    "Saúde & Bem-estar": {
+        "strengths":   [("🏥", "Nicho de alta intenção de compra — público busca ativamente soluções e converte bem com conteúdo educativo e de transformação."),
+                        ("📸", "Conteúdo de antes/depois e depoimentos reais têm alto poder de conversão nesse nicho.")],
+        "attentions":  [("⚠️", "Cuidado com promessas de resultados — seguir as diretrizes do CONAR e CFM para evitar restrições nos anúncios."),
+                        ("🔄", "Explorar formatos de Reel com demonstração prática ou depoimento em até 30s, que convertem mais que imagens nesse nicho.")],
+    },
+    "Educação & Capacitação": {
+        "strengths":   [("📚", "Conteúdo educativo tem alto potencial de salvamento — audiência guarda para estudar depois, aumentando o alcance orgânico."),
+                        ("🎓", "Autoridade construída via consistência gera leads qualificados e com menor custo de aquisição.")],
+        "attentions":  [("📊", "Priorizar métricas de conversão (inscrições, leads) além de engajamento — curtida não paga boleto."),
+                        ("🕐", "Postar nos horários de intervalo e pós-expediente (12h e 18-21h) — quando o público estuda ou pesquisa cursos.")],
+    },
+    "Negócios & Empreendedorismo": {
+        "strengths":   [("💼", "Público de alto poder aquisitivo e decisão rápida — conteúdo direto com ROI e cases reais converte bem."),
+                        ("📈", "Cases com números reais (faturamento, crescimento %) têm engajamento acima da média no nicho.")],
+        "attentions":  [("🎯", "Evitar conteúdo genérico de 'motivação' — público empreendedor valoriza conteúdo prático e acionável."),
+                        ("🔗", "Investir em conteúdo que gere tráfego para WhatsApp ou calendário de reunião — conversão acontece fora do Instagram.")],
+    },
+    "Moda & Beleza": {
+        "strengths":   [("👗", "Nicho fortemente visual — qualidade estética das imagens impacta diretamente o CTR dos anúncios."),
+                        ("✨", "Forte cultura de compartilhamento — conteúdo aspiracional tem alto potencial de viralização orgânica.")],
+        "attentions":  [("📸", "Priorizar Reels com demonstração do produto em uso — estática perde muito para vídeo nesse nicho."),
+                        ("🛍️", "Explorar conteúdo de 'como usar' e 'combinações' — gera saves e aumenta valor percebido do produto.")],
+    },
+    "Alimentação & Gastronomia": {
+        "strengths":   [("🍽️", "Conteúdo visual de alta qualidade (close do produto, vapor, textura) ativa gatilho sensorial e aumenta CTR."),
+                        ("⭐", "Avaliações e depoimentos de clientes satisfeitos têm peso decisivo na conversão nesse nicho.")],
+        "attentions":  [("📍", "Explorar geolocalização nos anúncios — público de gastronomia tem forte intenção local de compra."),
+                        ("🕐", "Picos de engajamento em horários de fome (11-13h e 18-20h) — agendar posts nesses horários aumenta alcance orgânico.")],
+    },
+    "Imóveis": {
+        "strengths":   [("🏢", "Decisão de alto valor — público pesquisa extensivamente antes de converter; consistência e autoridade são diferenciais."),
+                        ("🎥", "Tour virtual e vídeo do imóvel têm engajamento muito acima de imagens estáticas nesse nicho.")],
+        "attentions":  [("💰", "Leads de imóveis têm ciclo longo — investir em nutrição (conteúdo educativo sobre financiamento, FGTS) aumenta conversão."),
+                        ("📞", "CTA direto para WhatsApp ou telefone funciona melhor que link de site — público prefere conversar antes de decidir.")],
+    },
+    "Finanças & Investimentos": {
+        "strengths":   [("💰", "Conteúdo educativo (como funciona X, diferença entre A e B) gera autoridade e leads qualificados."),
+                        ("📊", "Público de alta renda e alta intenção — CPM mais alto mas qualidade de lead compensa.")],
+        "attentions":  [("⚖️", "Seguir regras da CVM para conteúdo de investimentos — evitar promessa de retorno garantido."),
+                        ("🎓", "Evitar jargões técnicos no criativo — simplicidade converte mais nesse nicho do que linguagem especializada.")],
+    },
+    "Serviços Profissionais": {
+        "strengths":   [("⚖️", "Autoridade e credenciais são o principal diferencial — destacar anos de experiência, certificações e resultados concretos."),
+                        ("🤝", "Depoimentos de clientes satisfeitos com resultados específicos têm alto poder de conversão nesse nicho.")],
+        "attentions":  [("📝", "Conteúdo educativo que explica o problema (antes de vender a solução) gera confiança e qualifica o lead."),
+                        ("📞", "Oferecer consulta ou diagnóstico gratuito como isca — reduz barreira de entrada e qualifica o lead.")],
+    },
+}
+
+
+def _strategic(d: dict, report_type: str, profile: dict = None) -> str:
     ct       = d.get("content", {})
     aud      = d.get("audience", {})
     best_fmt = ct.get("best_format", "Reel")
+    nicho    = (profile or {}).get("nicho", "") if profile else ""
+    goals    = (profile or {}).get("goals", {}) if profile else {}
     strengths  = []
     attentions = []
 
@@ -711,6 +765,48 @@ def _strategic(d: dict, report_type: str) -> str:
             pct_br = aud["country_pcts"][0] if aud["country_pcts"] else 0
             if pct_br >= 80:
                 strengths.append(("🇧🇷", f"<strong>{pct_br}% da audiência é brasileira</strong> — conteúdo em português, referências nacionais e datas comemorativas do Brasil têm alto potencial."))
+
+    # ── Insights específicos do nicho ────────────────────────────────────────
+    if nicho and nicho in _NICHE_STRATEGIC:
+        niche_tips = _NICHE_STRATEGIC[nicho]
+        for tip in niche_tips.get("strengths", []):
+            if len(strengths) < 6:
+                strengths.append(tip)
+        for tip in niche_tips.get("attentions", []):
+            if len(attentions) < 6:
+                attentions.append(tip)
+
+    # ── Metas vs real (se o cliente tem goals definidos) ──────────────────────
+    if goals and report_type != "Só Orgânico":
+        def _goal_num(k):
+            v = goals.get(k)
+            try:
+                return float(v) if v else 0
+            except Exception:
+                return 0
+
+        g_ctr = _goal_num("ctr_minimo")
+        g_cpm = _goal_num("cpm_maximo")
+        g_cpc = _goal_num("cpc_maximo")
+        real_ctr = float(d.get("avg_ctr", 0))
+        real_cpm = float(d.get("avg_cpm", 0))
+        real_cpc = float(d.get("avg_cpc", 0))
+
+        if g_ctr > 0 and real_ctr > 0:
+            if real_ctr >= g_ctr:
+                strengths.append(("🎯", f"CTR de <strong>{_br(real_ctr,2)}%</strong> acima da meta de {_br(g_ctr,2)}% — criativos performando acima do esperado."))
+            else:
+                attentions.append(("🎯", f"CTR de <strong>{_br(real_ctr,2)}%</strong> abaixo da meta de {_br(g_ctr,2)}% — revisar hooks e criativos para aumentar a taxa de cliques."))
+        if g_cpm > 0 and real_cpm > 0:
+            if real_cpm <= g_cpm:
+                strengths.append(("💡", f"CPM de <strong>R${_br(real_cpm,2)}</strong> dentro da meta de R${_br(g_cpm,2)} — segmentação eficiente."))
+            else:
+                attentions.append(("💡", f"CPM de <strong>R${_br(real_cpm,2)}</strong> acima da meta de R${_br(g_cpm,2)} — revisar segmentação para reduzir custo por mil impressões."))
+        if g_cpc > 0 and real_cpc > 0:
+            if real_cpc <= g_cpc:
+                strengths.append(("🖱️", f"CPC de <strong>R${_br(real_cpc,2)}</strong> dentro da meta de R${_br(g_cpc,2)} — campanhas com boa eficiência de clique."))
+            else:
+                attentions.append(("🖱️", f"CPC de <strong>R${_br(real_cpc,2)}</strong> acima da meta de R${_br(g_cpc,2)} — testar novos criativos ou ajustar lances para reduzir custo por clique."))
 
     # Ensure minimum 4 of each
     generic_strengths = [
@@ -1142,7 +1238,7 @@ def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at
         _paid_section(data, report_type, uid),
 
         # 8. Análise estratégica
-        _strategic(data, report_type),
+        _strategic(data, report_type, profile),
 
         # 9. Metas do cliente vs real
         _goals_section(profile, data, report_type),
