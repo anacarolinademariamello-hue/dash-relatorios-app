@@ -1046,7 +1046,60 @@ def _footer(profile: dict, d: dict, generated_at: str = "") -> str:
 
 # ── Main entry point ──────────────────────────────────────────────────────────
 
-def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at: str = "") -> str:
+def _comparativo_section(current: dict, previous: dict) -> str:
+    """Seção de comparativo vs período anterior para incluir no HTML do relatório."""
+    if not previous:
+        return ""
+
+    def _delta(key, label, prefix="", suffix="", decimals=0):
+        c = float(current.get(key, 0))
+        p = float(previous.get(key, 0))
+        if p == 0:
+            return ""
+        pct    = (c - p) / p * 100
+        arrow  = "↑" if pct >= 0 else "↓"
+        color  = "#16a34a" if pct >= 0 else "#dc2626"
+        bg     = "#f0fdf4" if pct >= 0 else "#fef2f2"
+        border = "#bbf7d0" if pct >= 0 else "#fecaca"
+        if decimals:
+            val_str = f"{prefix}{c:,.{decimals}f}{suffix}".replace(",", "X").replace(".", ",").replace("X", ".")
+        else:
+            val_str = f"{prefix}{int(round(c)):,}{suffix}".replace(",", ".")
+        return (
+            f'<div style="display:inline-flex;align-items:center;gap:8px;'
+            f'background:{bg};border:1px solid {border};border-radius:10px;'
+            f'padding:8px 14px;font-size:.85rem;white-space:nowrap;">'
+            f'<span style="color:#374151;">{label}</span>'
+            f'<strong style="color:#111;">{val_str}</strong>'
+            f'<span style="color:{color};font-weight:700;">{arrow} {abs(pct):.1f}%</span>'
+            f'</div>'
+        )
+
+    badges = [
+        _delta("total_reach",        "📡 Alcance"),
+        _delta("total_organic",      "🌱 Orgânico"),
+        _delta("total_interactions", "💬 Interações"),
+        _delta("org_eng_rate",       "📊 Engajamento", suffix="%", decimals=2),
+        _delta("total_saves",        "💾 Saves"),
+        _delta("followers_gained",   "📈 Seguidores", prefix="+"),
+        _delta("total_spend",        "💰 Gasto Ads", prefix="R$", decimals=2),
+    ]
+    badges = [b for b in badges if b]
+    if not badges:
+        return ""
+
+    return (
+        '<section class="section">'
+        '<h2 class="section-title">📊 Comparativo vs Período Anterior</h2>'
+        '<p style="font-size:.88rem;color:var(--muted);margin-bottom:16px;">'
+        'Variação percentual dos principais indicadores em relação ao período equivalente anterior.</p>'
+        '<div style="display:flex;flex-wrap:wrap;gap:10px;">'
+        + "".join(badges)
+        + '</div></section>'
+    )
+
+
+def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at: str = "", prev_data: dict = None) -> str:
     import time
     uid = str(int(time.time() * 1000))[-6:]
     c   = profile["colors"]
@@ -1066,6 +1119,9 @@ def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at
         "<h2 class='section-title'>📈 Métricas do Período</h2>",
         _kpis(data, report_type),
         "</section>",
+
+        # 1b. Comparativo vs período anterior (só se houver histórico)
+        _comparativo_section(data, prev_data or {}),
 
         # 2. Observação
         _obs_card(data, report_type),

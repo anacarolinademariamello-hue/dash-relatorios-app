@@ -527,9 +527,16 @@ if gerar:
 
     with st.spinner("🎨 Gerando relatório…"):
         data = process(ig_rows, ads_rows, profile_info, audience, top_posts, date_from_str, date_to_str)
+
+        # Busca comparativo ANTES de gerar o HTML para incluir no relatório
+        prev = supabase_db.get_previous_metrics(
+            profile["key"], date_from_str, date_to_str, report_type
+        )
+
         html = generate(
             profile, data, report_type,
             generated_at=datetime.now().strftime("%d/%m/%Y às %H:%M"),
+            prev_data=prev,
         )
 
     st.session_state.report_html   = html
@@ -537,15 +544,12 @@ if gerar:
     st.session_state.report_label  = f"✅ Relatório gerado — {profile['handle']} · {data['period_label']} · {report_type}"
     st.session_state.report_file   = f"relatorio_{profile['key']}_{date_from_str}_{date_to_str}.html"
     st.session_state.report_config = _current_config
+    st.session_state.report_prev   = prev
 
-    # ── Salvar histórico + buscar comparativo ─────────────────────────────────
+    # Salva histórico depois (não bloqueia o HTML)
     supabase_db.save_report_metrics(
         profile["key"], date_from_str, date_to_str, report_type, data
     )
-    prev = supabase_db.get_previous_metrics(
-        profile["key"], date_from_str, date_to_str, report_type
-    )
-    st.session_state.report_prev = prev  # None if no history yet
 
 if not st.session_state.report_html:
     st.markdown("""
