@@ -342,9 +342,6 @@ def _get_logo_b64() -> str:
 
 _logo_b64 = _get_logo_b64()
 
-# ── View (query param) — definido antes do sidebar ───────────────────────────
-_view = st.query_params.get("view", "")
-
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     if _logo_b64:
@@ -358,574 +355,98 @@ with st.sidebar:
     else:
         st.markdown("### 📊 Dash Digital")
 
-    if _view == "clientes":
-        # ── Sidebar da vista Gerenciar Clientes ───────────────────────────────
-        st.markdown("**👥 Gerenciar Clientes**")
-        st.markdown(
-            '<a href="/" target="_self" style="display:block;color:rgba(255,255,255,0.70);'
-            'text-decoration:none;font-size:.85rem;padding:4px 0 8px 0;">'
-            '← Voltar ao Gerador de Relatórios</a>',
-            unsafe_allow_html=True,
-        )
-        st.markdown("---")
-        st.markdown(
-            "<small style='opacity:.55;font-size:.78rem;'>Clientes cadastrados aqui aparecem "
-            "automaticamente no Gerador de Relatórios e no Gerador de Copies.</small>",
-            unsafe_allow_html=True,
-        )
-        # Variáveis dummy (não usadas na vista clientes)
-        profile_name = None
-        gerar        = False
-        date_from = date_to = report_type = None
-    else:
-        # ── Sidebar do Gerador de Relatórios ──────────────────────────────────
-        st.markdown("**Gerador de Relatórios**")
-        st.markdown(
-            '<a href="/?view=clientes" target="_self" style="display:block;'
-            'color:rgba(255,255,255,0.75);text-decoration:none;font-size:.87rem;'
-            'padding:4px 0 8px 0;">👥 Gerenciar Clientes</a>',
-            unsafe_allow_html=True,
-        )
-        st.markdown("---")
+    # ── Sidebar do Gerador de Relatórios ──────────────────────────────────
+    st.markdown("**Gerador de Relatórios**")
+    st.markdown("---")
 
-        _all_profiles = _load_profiles()
-        profile_name = st.selectbox(
-            "Perfil",
-            list(_all_profiles.keys()),
-            help="Selecione o cliente",
-        )
+    _all_profiles = _load_profiles()
+    profile_name = st.selectbox(
+        "Perfil",
+        list(_all_profiles.keys()),
+        help="Selecione o cliente",
+    )
 
-        st.markdown("**Período**")
-        col1, col2 = st.columns(2)
-        default_end   = date.today() - timedelta(days=1)
-        default_start = default_end - timedelta(days=29)
-        date_from = col1.date_input("De",   value=default_start, format="DD/MM/YYYY")
-        date_to   = col2.date_input("Até",  value=default_end,   format="DD/MM/YYYY")
+    st.markdown("**Período**")
+    col1, col2 = st.columns(2)
+    default_end   = date.today() - timedelta(days=1)
+    default_start = default_end - timedelta(days=29)
+    date_from = col1.date_input("De",   value=default_start, format="DD/MM/YYYY")
+    date_to   = col2.date_input("Até",  value=default_end,   format="DD/MM/YYYY")
 
-        report_type = st.radio(
-            "Tipo de Relatório",
-            ["Geral", "Só Orgânico", "Só Pago"],
-            index=0,
-            help="Geral: tudo | Só Orgânico: sem seção de ads | Só Pago: foco em campanhas",
-        )
+    report_type = st.radio(
+        "Tipo de Relatório",
+        ["Geral", "Só Orgânico", "Só Pago"],
+        index=0,
+        help="Geral: tudo | Só Orgânico: sem seção de ads | Só Pago: foco em campanhas",
+    )
 
-        # ── Status do token Meta ──────────────────────────────────────────────
-        _token_ok    = True
-        _token_msg   = ""
-        _token_level = ""
+    # ── Status do token Meta ──────────────────────────────────────────────
+    _token_ok    = True
+    _token_msg   = ""
+    _token_level = ""
 
-        try:
-            _meta_token = st.secrets.get("meta_access_token", "") or ""
-            _created_str = st.secrets.get("meta_token_created", "") or ""
+    try:
+        _meta_token = st.secrets.get("meta_access_token", "") or ""
+        _created_str = st.secrets.get("meta_token_created", "") or ""
 
-            if not _meta_token:
+        if not _meta_token:
+            _token_ok    = False
+            _token_level = "missing"
+            _token_msg   = (
+                "🔴 <strong>Token Meta não configurado!</strong><br>"
+                "Adicione <code>meta_access_token</code> em Secrets."
+            )
+        elif _created_str:
+            _created  = datetime.strptime(_created_str, "%Y-%m-%d").date()
+            _expires  = _created + timedelta(days=60)
+            _days_left = (_expires - date.today()).days
+
+            if _days_left <= 0:
                 _token_ok    = False
-                _token_level = "missing"
+                _token_level = "error"
                 _token_msg   = (
-                    "🔴 <strong>Token Meta não configurado!</strong><br>"
-                    "Adicione <code>meta_access_token</code> em Secrets."
+                    "🔴 <strong>Token Meta expirado!</strong><br>"
+                    "Renove o token para gerar relatórios."
                 )
-            elif _created_str:
-                _created  = datetime.strptime(_created_str, "%Y-%m-%d").date()
-                _expires  = _created + timedelta(days=60)
-                _days_left = (_expires - date.today()).days
+            elif _days_left <= 10:
+                _token_level = "warning"
+                _token_msg   = (
+                    f"⚠️ <strong>Token expira em {_days_left} dias</strong><br>"
+                    f"Renove antes de {_expires.strftime('%d/%m/%Y')}."
+                )
+            else:
+                _token_level = "ok"
+                _token_msg   = f"🔑 Token válido por mais {_days_left} dias"
+    except Exception:
+        pass
 
-                if _days_left <= 0:
-                    _token_ok    = False
-                    _token_level = "error"
-                    _token_msg   = (
-                        "🔴 <strong>Token Meta expirado!</strong><br>"
-                        "Renove o token para gerar relatórios."
-                    )
-                elif _days_left <= 10:
-                    _token_level = "warning"
-                    _token_msg   = (
-                        f"⚠️ <strong>Token expira em {_days_left} dias</strong><br>"
-                        f"Renove antes de {_expires.strftime('%d/%m/%Y')}."
-                    )
-                else:
-                    _token_level = "ok"
-                    _token_msg   = f"🔑 Token válido por mais {_days_left} dias"
-        except Exception:
-            pass
+    _btn_label = "🚀 Gerar Relatório" if _token_ok else "⛔ Token inválido — não é possível gerar"
+    gerar = st.button(_btn_label, use_container_width=True, disabled=not _token_ok)
 
-        _btn_label = "🚀 Gerar Relatório" if _token_ok else "⛔ Token inválido — não é possível gerar"
-        gerar = st.button(_btn_label, use_container_width=True, disabled=not _token_ok)
-
-        st.markdown("---")
-        if _token_level in ("missing", "error"):
-            st.markdown(
-                f"<div style='background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;"
-                f"padding:10px 12px;font-size:.78rem;color:#991b1b;margin-bottom:8px;'>{_token_msg}</div>",
-                unsafe_allow_html=True,
-            )
-        elif _token_level == "warning":
-            st.markdown(
-                f"<div style='background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;"
-                f"padding:10px 12px;font-size:.78rem;color:#92400e;margin-bottom:8px;'>{_token_msg}</div>",
-                unsafe_allow_html=True,
-            )
-        elif _token_level == "ok":
-            st.markdown(
-                f"<small style='opacity:.45;font-size:.7rem;'>{_token_msg}</small>",
-                unsafe_allow_html=True,
-            )
-
+    st.markdown("---")
+    if _token_level in ("missing", "error"):
         st.markdown(
-            "<small style='opacity:.55'>Os dados são buscados em tempo real<br>via Instagram Insights + Meta Ads</small>",
+            f"<div style='background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;"
+            f"padding:10px 12px;font-size:.78rem;color:#991b1b;margin-bottom:8px;'>{_token_msg}</div>",
+            unsafe_allow_html=True,
+        )
+    elif _token_level == "warning":
+        st.markdown(
+            f"<div style='background:#fef3c7;border:1px solid #fcd34d;border-radius:8px;"
+            f"padding:10px 12px;font-size:.78rem;color:#92400e;margin-bottom:8px;'>{_token_msg}</div>",
+            unsafe_allow_html=True,
+        )
+    elif _token_level == "ok":
+        st.markdown(
+            f"<small style='opacity:.45;font-size:.7rem;'>{_token_msg}</small>",
             unsafe_allow_html=True,
         )
 
-# ── Vista: Gerenciar Clientes (?view=clientes) ────────────────────────────────
-if _view == "clientes":
-    import json as _cljson
+    st.markdown(
+        "<small style='opacity:.55'>Os dados são buscados em tempo real<br>via Instagram Insights + Meta Ads</small>",
+        unsafe_allow_html=True,
+    )
 
-    # ── Helpers REST ──────────────────────────────────────────────────────────
-    def _cl_headers():
-        _, key = supabase_db._get_creds()
-        return {"apikey": key, "Authorization": f"Bearer {key}",
-                "Content-Type": "application/json", "Prefer": "return=representation"}
-
-    def _cl_rest(table):
-        url, _ = supabase_db._get_creds()
-        return f"{url}/rest/v1/{table}"
-
-    def _extract_file(f):
-        try:
-            name = f.name.lower()
-            if name.endswith(".pdf"):
-                import pypdf
-                reader = pypdf.PdfReader(f)
-                return "\n".join(p.extract_text() or "" for p in reader.pages).strip()
-            return f.read().decode("utf-8", errors="ignore").strip()
-        except Exception as e:
-            return f"[Erro ao ler arquivo: {e}]"
-
-    @st.cache_data(ttl=60)
-    def _load_all_clients():
-        if not supabase_db.is_configured():
-            return []
-        try:
-            r = requests.get(_cl_rest("clients"), headers=_cl_headers(),
-                             params={"order": "name.asc", "select": "*"}, timeout=10)
-            r.raise_for_status()
-            return r.json()
-        except Exception:
-            return []
-
-    def _save_client(data):
-        if not supabase_db.is_configured():
-            return False, "Supabase não configurado."
-        try:
-            r = requests.post(
-                _cl_rest("clients"),
-                headers={**_cl_headers(), "Prefer": "resolution=merge-duplicates,return=minimal"},
-                json=data, timeout=10,
-            )
-            if r.status_code in (200, 201):
-                return True, "✅ Cliente salvo com sucesso!"
-            return False, f"Erro {r.status_code}: {r.text}"
-        except Exception as e:
-            return False, f"Erro: {e}"
-
-    def _toggle_active(key, active):
-        try:
-            r = requests.patch(_cl_rest("clients"), headers=_cl_headers(),
-                               params={"key": f"eq.{key}"}, json={"active": active}, timeout=10)
-            return r.status_code in (200, 204)
-        except Exception:
-            return False
-
-    _CL_DEFAULT_COLORS = {
-        "p": "#003f7c", "p2": "#1a5a9a", "a": "#f8b940", "ad": "#d99a20",
-        "header_end": "#2471c8", "period_color": "#ffe08a", "stat_color": "#f8b940",
-    }
-
-    def _rgba(h, alpha):
-        h = h.lstrip("#")
-        try:
-            r2, g2, b2 = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
-            return f"rgba({r2},{g2},{b2},{alpha})"
-        except Exception:
-            return f"rgba(0,63,124,{alpha})"
-
-    def _client_form(existing=None, form_key="new"):
-        e = existing or {}
-        colors = e.get("colors") or _CL_DEFAULT_COLORS
-        if isinstance(colors, str):
-            colors = _cljson.loads(colors)
-        goals = e.get("goals") or {}
-        if isinstance(goals, str):
-            goals = _cljson.loads(goals)
-
-        with st.form(key=f"clform_{form_key}"):
-
-            # ── 1. Identificação ───────────────────────────────────────────────
-            st.markdown("#### 👤 Identificação")
-            ci1, ci2 = st.columns(2)
-            with ci1:
-                name   = st.text_input("Nome do cliente *",
-                                        value=e.get("name", ""),
-                                        placeholder="Ex: Prof. Wanzeller")
-                handle = st.text_input("Handle do Instagram *",
-                                        value=e.get("handle", ""),
-                                        placeholder="Ex: @prof.wanzeller")
-            with ci2:
-                slug = st.text_input(
-                    "Identificador interno (slug) *",
-                    value=e.get("key", ""),
-                    placeholder="Ex: wanzeller",
-                    help="Texto curto sem espaços ou acentos, em letras minúsculas. "
-                         "Usado para identificar o cliente no sistema.",
-                )
-                avatar = st.text_input("Emoji do cliente",
-                                        value=e.get("avatar", "📊"),
-                                        help="Um emoji representativo do cliente. Ex: 🎓 👩‍💼 📚")
-
-            st.divider()
-
-            # ── 2. IDs das contas Meta ─────────────────────────────────────────
-            st.markdown("#### 📱 IDs das Contas Meta")
-            st.caption(
-                "Os IDs são necessários para buscar os dados da conta na API da Meta. "
-                "**Instagram Business ID:** Meta Business Suite → Configurações → Contas do Instagram → selecione a conta → ID. "
-                "**Meta Ads ID:** Gerenciador de Anúncios → a URL mostra 'act_NÚMERO' — use só o número."
-            )
-            cm1, cm2 = st.columns(2)
-            with cm1:
-                ig_id = st.text_input("ID da Conta Instagram Business *",
-                                       value=e.get("instagram_id", ""),
-                                       placeholder="Ex: 17841479657213211")
-            with cm2:
-                fb_id = st.text_input("ID da Conta Meta Ads *",
-                                       value=e.get("facebook_account_id", ""),
-                                       placeholder="Ex: 1429787371828065  (sem o act_)")
-
-            st.divider()
-
-            # ── 3. Apresentação no Relatório ──────────────────────────────────
-            st.markdown("#### 📄 Apresentação no Relatório")
-            bio = st.text_area(
-                "Descrição do cliente",
-                value=e.get("bio", ""),
-                height=75,
-                placeholder="Aparece no cabeçalho do relatório. Ex: 'Professor de matemática para concursos públicos'",
-                help="Preenchida manualmente — a bio real do Instagram pode ser diferente do que você quer exibir no relatório.",
-            )
-            hashtags = st.text_input(
-                "Hashtags / Áreas de atuação",
-                value=", ".join(e.get("tags") or []),
-                placeholder="Ex: #Educação, #ConcursoPúblico, #TráfegoPago",
-                help="Aparecem como etiquetas no cabeçalho do relatório, identificando as áreas de atuação do cliente. "
-                     "Separe por vírgula.",
-            )
-            footer = st.text_input(
-                "Rodapé do relatório",
-                value=e.get("footer", ""),
-                placeholder="Se vazio, será gerado automaticamente com o nome do cliente.",
-            )
-
-            st.divider()
-
-            # ── 4. Tom de Voz ─────────────────────────────────────────────────
-            st.markdown("#### 🗣️ Tom de Voz")
-            st.caption("Usado pelo Gerador de Copies para criar textos alinhados com a comunicação do cliente.")
-            tv1, tv2 = st.columns(2)
-            with tv1:
-                tov_file = st.file_uploader(
-                    "Upload do guia de tom de voz (TXT ou PDF)",
-                    type=["txt", "pdf"],
-                    key=f"tov_file_{form_key}",
-                    help="Se fizer upload, o conteúdo do arquivo substitui o texto digitado abaixo.",
-                )
-            with tv2:
-                tov_text = st.text_area(
-                    "Ou descreva o tom de voz",
-                    value=e.get("tone_of_voice", ""),
-                    height=120,
-                    placeholder="Como o cliente fala? Que palavras usa? O que evita? Qual é o tom? Exemplos de frases...",
-                )
-            competitors = st.text_input(
-                "Páginas concorrentes no Facebook",
-                value=e.get("competitors", ""),
-                placeholder="Ex: Página Concorrente A, Página Concorrente B",
-                help="Usado para análise competitiva no Gerador de Copies.",
-            )
-
-            st.divider()
-
-            # ── 5. Cores do Relatório ─────────────────────────────────────────
-            st.markdown("#### 🎨 Cores do Relatório")
-            st.caption("Cole o código hex de cada cor (formato #RRGGBB). Ao salvar, as cores são aplicadas ao relatório.")
-            _color_defs = [
-                ("p",            "Cor primária",               colors.get("p",            "#003f7c")),
-                ("p2",           "Cor primária secundária",     colors.get("p2",           "#1a5a9a")),
-                ("a",            "Cor de destaque",             colors.get("a",            "#f8b940")),
-                ("ad",           "Destaque escuro",             colors.get("ad",           "#d99a20")),
-                ("header_end",   "Cor final do cabeçalho",      colors.get("header_end",   "#2471c8")),
-                ("period_color", "Cor do badge de período",     colors.get("period_color", "#ffe08a")),
-                ("stat_color",   "Cor dos números (KPIs)",      colors.get("stat_color",   "#f8b940")),
-            ]
-            _col_vals = {}
-            for i in range(0, len(_color_defs), 2):
-                row = st.columns([5, 1, 5, 1])
-                for j in range(2):
-                    if i + j < len(_color_defs):
-                        fk, lbl, dflt = _color_defs[i + j]
-                        with row[j * 2]:
-                            val = st.text_input(lbl, value=dflt,
-                                                key=f"col_{fk}_{form_key}", max_chars=7)
-                            _col_vals[fk] = val
-                        with row[j * 2 + 1]:
-                            st.markdown(
-                                f'<div style="margin-top:28px;width:34px;height:34px;'
-                                f'border-radius:6px;background:{dflt};'
-                                f'border:1px solid #dde3ed;"></div>',
-                                unsafe_allow_html=True,
-                            )
-
-            st.divider()
-
-            # ── 6. Metas de Tráfego Pago ──────────────────────────────────────
-            st.markdown("#### 🎯 Metas de Tráfego Pago")
-            st.caption(
-                "Defina os limites e objetivos para cada métrica. "
-                "Esses valores são usados nos alertas automáticos e na análise de performance. "
-                "Deixe em 0 (zero) para não definir uma meta."
-            )
-            mg1, mg2, mg3 = st.columns(3)
-            with mg1:
-                st.markdown("**Aquisição de Seguidores**")
-                g_seg = st.number_input("Custo máx. por seguidor (R$)",
-                                         min_value=0.0, step=0.50, format="%.2f",
-                                         value=float(goals.get("custo_por_seguidor") or 0))
-                g_cpm = st.number_input("CPM máximo — custo por mil impressões (R$)",
-                                         min_value=0.0, step=1.0, format="%.2f",
-                                         value=float(goals.get("cpm_maximo") or 0))
-            with mg2:
-                st.markdown("**Vendas / Conversões**")
-                g_venda = st.number_input("Custo máx. por venda (R$)",
-                                           min_value=0.0, step=1.0, format="%.2f",
-                                           value=float(goals.get("custo_por_venda") or 0))
-                g_cpa = st.number_input("CPA máximo — custo por resultado (R$)",
-                                         min_value=0.0, step=1.0, format="%.2f",
-                                         value=float(goals.get("cpa_maximo") or 0))
-                g_roas = st.number_input("ROAS mínimo (×) — retorno sobre investimento",
-                                          min_value=0.0, step=0.5, format="%.1f",
-                                          value=float(goals.get("roas_minimo") or 0))
-            with mg3:
-                st.markdown("**Engajamento / Cliques**")
-                g_ctr = st.number_input("CTR mínimo (%)",
-                                         min_value=0.0, step=0.1, format="%.2f",
-                                         value=float(goals.get("ctr_minimo") or 0))
-                g_cpc = st.number_input("CPC máximo — custo por clique (R$)",
-                                         min_value=0.0, step=0.10, format="%.2f",
-                                         value=float(goals.get("cpc_maximo") or 0))
-                g_conv = st.number_input("Taxa de conversão mínima (%)",
-                                          min_value=0.0, step=0.1, format="%.2f",
-                                          value=float(goals.get("taxa_conversao_minima") or 0))
-
-            st.divider()
-
-            # ── 7. Observações ────────────────────────────────────────────────
-            st.markdown("#### 📝 Observações")
-            observations = st.text_area(
-                "Observações sobre o cliente",
-                value=e.get("observations", ""),
-                height=100,
-                placeholder="Informações importantes, particularidades da conta, contexto, acordos comerciais, etc.",
-                label_visibility="collapsed",
-            )
-
-            submitted = st.form_submit_button("💾 Salvar Cliente", use_container_width=True, type="primary")
-
-        if not submitted:
-            return None
-
-        # ── Validação ─────────────────────────────────────────────────────────
-        errs = []
-        if not name.strip():   errs.append("Nome do cliente")
-        if not handle.strip(): errs.append("Handle do Instagram")
-        if not slug.strip():   errs.append("Identificador interno")
-        if not ig_id.strip():  errs.append("ID da Conta Instagram")
-        if not fb_id.strip():  errs.append("ID da Conta Meta Ads")
-        if errs:
-            st.error(f"Campos obrigatórios não preenchidos: **{', '.join(errs)}**")
-            return None
-
-        # ── Tom de voz (arquivo tem prioridade) ───────────────────────────────
-        tov_final = tov_text.strip()
-        if tov_file is not None:
-            tov_final = _extract_file(tov_file)
-
-        # ── Cores finais ──────────────────────────────────────────────────────
-        p_v  = _col_vals.get("p",  "#003f7c")
-        a_v  = _col_vals.get("a",  "#f8b940")
-        final_colors = {
-            "p":            p_v,
-            "p2":           _col_vals.get("p2",  "#1a5a9a"),
-            "a":            a_v,
-            "ad":           _col_vals.get("ad",  "#d99a20"),
-            "al":           _rgba(a_v,  0.13),
-            "pl":           _rgba(p_v,  0.08),
-            "bg":           "#f0f3f8",
-            "header_end":   _col_vals.get("header_end",   "#2471c8"),
-            "period_color": _col_vals.get("period_color", "#ffe08a"),
-            "stat_color":   _col_vals.get("stat_color",   "#f8b940"),
-        }
-
-        # ── Metas ─────────────────────────────────────────────────────────────
-        def _g(v): return v if v and v > 0 else None
-        final_goals = {k: v for k, v in {
-            "custo_por_seguidor":    _g(g_seg),
-            "custo_por_venda":       _g(g_venda),
-            "cpa_maximo":            _g(g_cpa),
-            "ctr_minimo":            _g(g_ctr),
-            "cpm_maximo":            _g(g_cpm),
-            "cpc_maximo":            _g(g_cpc),
-            "roas_minimo":           _g(g_roas),
-            "taxa_conversao_minima": _g(g_conv),
-        }.items() if v is not None}
-
-        return {
-            "key":                 slug.strip().lower().replace(" ", "-"),
-            "name":                name.strip(),
-            "handle":              handle.strip(),
-            "instagram_id":        ig_id.strip(),
-            "facebook_account_id": fb_id.strip(),
-            "bio":                 bio.strip(),
-            "tags":                [t.strip() for t in hashtags.split(",") if t.strip()],
-            "avatar":              avatar.strip() or "📊",
-            "footer":              footer.strip() or f"Relatório gerado para <strong>{name.strip()}</strong> por Dash Digital.",
-            "colors":              final_colors,
-            "tone_of_voice":       tov_final,
-            "competitors":         competitors.strip(),
-            "goals":               final_goals,
-            "observations":        observations.strip(),
-            "active":              True,
-        }
-
-    # ── Header ────────────────────────────────────────────────────────────────
-    st.markdown("""
-    <div style="background:linear-gradient(135deg,#003f7c,#1a5a9a);border-radius:16px;
-    padding:26px 32px;color:#fff;margin-bottom:24px;">
-    <div style="font-size:1.45rem;font-weight:700;">👥 Gerenciar Clientes</div>
-    <div style="font-size:.88rem;opacity:.65;margin-top:4px;">
-    Cadastre, edite e gerencie os clientes da agência.
-    Alterações aparecem automaticamente no Gerador de Relatórios e no Gerador de Copies.
-    </div></div>
-    """, unsafe_allow_html=True)
-
-    if not supabase_db.is_configured():
-        st.error("⚠️ Supabase não configurado. Verifique `supabase_url` e `supabase_service_key` nos Secrets do Streamlit Cloud.")
-        st.stop()
-
-    # ── Session state ─────────────────────────────────────────────────────────
-    for _k, _v in [("cl_editing", None), ("cl_new", False)]:
-        if _k not in st.session_state:
-            st.session_state[_k] = _v
-
-    # ── Lista de clientes ─────────────────────────────────────────────────────
-    clients_list = _load_all_clients()
-    col_t, col_b = st.columns([4, 1])
-    with col_t:
-        st.markdown(f"### Clientes cadastrados ({len(clients_list)})")
-    with col_b:
-        if st.button("➕ Novo cliente", use_container_width=True):
-            st.session_state.cl_new = True
-            st.session_state.cl_editing = None
-
-    # ── Formulário novo cliente ───────────────────────────────────────────────
-    if st.session_state.cl_new:
-        with st.expander("➕ Cadastrar Novo Cliente", expanded=True):
-            result = _client_form(form_key="new")
-            if result is not None:
-                ok, msg = _save_client(result)
-                if ok:
-                    st.success(msg)
-                    st.session_state.cl_new = False
-                    _load_all_clients.clear()
-                    st.rerun()
-                else:
-                    st.error(msg)
-            if st.button("✕ Cancelar", key="cl_cancel_new"):
-                st.session_state.cl_new = False
-                st.rerun()
-
-    # ── Cards dos clientes ────────────────────────────────────────────────────
-    if not clients_list:
-        st.info("Nenhum cliente cadastrado ainda. Clique em **➕ Novo cliente** para começar.")
-    else:
-        for cl in clients_list:
-            active  = cl.get("active", True)
-            colors  = cl.get("colors") or {}
-            if isinstance(colors, str):
-                colors = _cljson.loads(colors)
-            accent  = colors.get("a", "#f8b940")
-            opacity = "1.0" if active else "0.45"
-
-            cav, cinf, cact = st.columns([1, 7, 2])
-            with cav:
-                st.markdown(
-                    f'<div style="font-size:2rem;width:52px;height:52px;border-radius:50%;'
-                    f'background:{accent}22;display:flex;align-items:center;'
-                    f'justify-content:center;opacity:{opacity};">{cl.get("avatar","📊")}</div>',
-                    unsafe_allow_html=True,
-                )
-            with cinf:
-                badge = (
-                    "" if active else
-                    ' <span style="background:#fee2e2;color:#991b1b;font-size:.7rem;'
-                    'padding:2px 8px;border-radius:10px;font-weight:700;">INATIVO</span>'
-                )
-                has_goals = bool(cl.get("goals"))
-                has_tov   = bool(cl.get("tone_of_voice", "").strip())
-                extras = " · ".join(filter(None, [
-                    "🎯 Metas" if has_goals else "",
-                    "🗣️ Tom de voz" if has_tov else "",
-                ]))
-                st.markdown(
-                    f'<div style="opacity:{opacity};">'
-                    f'<strong style="font-size:1rem;color:#003f7c;">{cl["name"]}</strong>{badge}<br>'
-                    f'<span style="font-size:.85rem;color:#6b7280;">{cl.get("handle","")} · '
-                    f'IG: {cl.get("instagram_id","")}</span>'
-                    + (f'<br><span style="font-size:.78rem;color:#9ca3af;">{extras}</span>' if extras else "")
-                    + '</div>',
-                    unsafe_allow_html=True,
-                )
-            with cact:
-                b1, b2 = st.columns(2)
-                with b1:
-                    if st.button("✏️", key=f"cl_ed_{cl['key']}", help="Editar"):
-                        st.session_state.cl_editing = cl["key"]
-                        st.session_state.cl_new = False
-                with b2:
-                    if active:
-                        if st.button("🔕", key=f"cl_da_{cl['key']}", help="Desativar"):
-                            if _toggle_active(cl["key"], False):
-                                _load_all_clients.clear(); st.rerun()
-                    else:
-                        if st.button("✅", key=f"cl_ac_{cl['key']}", help="Reativar"):
-                            if _toggle_active(cl["key"], True):
-                                _load_all_clients.clear(); st.rerun()
-
-            if st.session_state.cl_editing == cl["key"]:
-                with st.expander(f"✏️ Editando: {cl['name']}", expanded=True):
-                    result = _client_form(existing=cl, form_key=f"edit_{cl['key']}")
-                    if result is not None:
-                        ok, msg = _save_client(result)
-                        if ok:
-                            st.success(msg)
-                            st.session_state.cl_editing = None
-                            _load_all_clients.clear(); st.rerun()
-                        else:
-                            st.error(msg)
-                    if st.button("✕ Cancelar edição", key=f"cl_ce_{cl['key']}"):
-                        st.session_state.cl_editing = None; st.rerun()
-
-            st.divider()
-
-    st.stop()
 
 # ── Main area ─────────────────────────────────────────────────────────────────
 st.markdown("""
