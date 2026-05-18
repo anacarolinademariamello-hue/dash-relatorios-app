@@ -67,7 +67,11 @@ def get_clients() -> dict:
         resp = requests.get(
             _rest("clients"),
             headers=_headers(),
-            params={"active": "eq.true", "order": "name.asc"},
+            params={
+                "active": "eq.true",
+                "order":  "name.asc",
+                "select": "key,name,handle,instagram_id,facebook_account_id,bio,tags,avatar,footer,colors,goals,nicho,sub_nicho",
+            },
             timeout=10,
         )
         resp.raise_for_status()
@@ -97,8 +101,9 @@ def get_clients() -> dict:
                     or f"Relatório gerado para <strong>{r['name']}</strong> por Dash Digital."
                 ),
                 "colors": colors,
-                "goals":  goals,
-                "nicho":  r.get("nicho") or "",
+                "goals":     goals,
+                "nicho":     r.get("nicho") or "",
+                "sub_nicho": r.get("sub_nicho") or "",
             }
         return profiles
     except Exception:
@@ -237,7 +242,6 @@ def save_report_metrics(
         "audience":           audience_summary,
         "top_campaigns":      top_campaigns,
         "cost_per_follower":  round(float(data.get("cost_per_follower", 0)), 2),
-        "posting_days":       data.get("posting_days", 0),
         "total_posts":        data.get("total_posts_fetched", 0),
         "nicho":              data.get("nicho", ""),
     }

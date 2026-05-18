@@ -42,7 +42,7 @@ def _format_icon(fmt):
 
 def _css(c: dict) -> str:
     return f"""<style>
-:root{{--p:{c['p']};--p2:{c['p2']};--a:{c['a']};--ad:{c['ad']};--al:{c['al']};--pl:{c['pl']};--bg:{c['bg']};--white:#fff;--text:#1a1a2e;--muted:#6b7280;--border:#dde3ed;--green:#10b981;--orange:#f97316;}}
+:root{{--p:{c['p']};--p2:{c['p2']};--a:{c['a']};--ad:{c['ad']};--al:{c.get('al','rgba(248,185,64,0.13)')};--pl:{c.get('pl','rgba(0,63,124,0.08)')};--bg:{c['bg']};--white:#fff;--text:#1a1a2e;--muted:#6b7280;--border:#dde3ed;--green:#10b981;--orange:#f97316;}}
 *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0;}}
 body{{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;font-size:15px;}}
 a{{color:var(--p2);text-decoration:none;}}a:hover{{text-decoration:underline;}}
@@ -689,12 +689,39 @@ _NICHE_STRATEGIC = {
 }
 
 
-def _strategic(d: dict, report_type: str, profile: dict = None) -> str:
+def _strategic(d: dict, report_type: str, profile: dict = None, ai_analysis: dict = None) -> str:
     ct       = d.get("content", {})
     aud      = d.get("audience", {})
     best_fmt = ct.get("best_format", "Reel")
     nicho    = (profile or {}).get("nicho", "") if profile else ""
     goals    = (profile or {}).get("goals", {}) if profile else {}
+
+    # ── Análise gerada por IA (substitui os templates estáticos quando disponível) ──
+    if ai_analysis and ai_analysis.get("strengths") and ai_analysis.get("attentions"):
+        str_items = "".join(
+            f'<li><span class="bullet">{e}</span><span>{t}</span></li>'
+            for e, t in ai_analysis["strengths"]
+        )
+        att_items = "".join(
+            f'<li><span class="bullet">{e}</span><span>{t}</span></li>'
+            for e, t in ai_analysis["attentions"]
+        )
+        return f"""
+<section class="section">
+<h2 class="section-title">🧭 Análise Estratégica</h2>
+<div class="analysis-grid">
+<div class="analysis-block strengths">
+<h4>✅ Pontos Fortes</h4>
+<ul class="analysis-list">{str_items}</ul>
+</div>
+<div class="analysis-block attention">
+<h4>⚠️ Pontos de Atenção</h4>
+<ul class="analysis-list">{att_items}</ul>
+</div>
+</div>
+</section>"""
+
+    # ── Fallback: lógica baseada em templates (usada se IA não disponível) ────
     strengths  = []
     attentions = []
 
@@ -1195,7 +1222,7 @@ def _comparativo_section(current: dict, previous: dict) -> str:
     )
 
 
-def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at: str = "", prev_data: dict = None) -> str:
+def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at: str = "", prev_data: dict = None, ai_analysis: dict = None) -> str:
     import time
     uid = str(int(time.time() * 1000))[-6:]
     c   = profile["colors"]
@@ -1237,8 +1264,8 @@ def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at
         # 7. Tráfego pago
         _paid_section(data, report_type, uid),
 
-        # 8. Análise estratégica
-        _strategic(data, report_type, profile),
+        # 8. Análise estratégica (IA quando disponível, fallback estático)
+        _strategic(data, report_type, profile, ai_analysis=ai_analysis),
 
         # 9. Metas do cliente vs real
         _goals_section(profile, data, report_type),

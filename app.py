@@ -17,6 +17,7 @@ from src.api import (
 )
 from src.processor import process
 from src.html_gen import generate
+from src.ai_strategic import generate_strategic_analysis
 from src import supabase_db
 
 
@@ -79,7 +80,7 @@ def _make_csv(data: dict) -> str:
     w.writerow([
         "Data", "Alcance Total", "Alcance Orgânico", "Alcance Pago",
         "Curtidas", "Comentários", "Salvamentos", "Compartilhamentos",
-        "Interações Totais", "Seguidores Ganhos",
+        "Interações Totais", "Seguidores Ganhos", "Gasto Ads (R$)",
     ])
     labels = data.get("labels", [])
     for i, label in enumerate(labels):
@@ -94,6 +95,7 @@ def _make_csv(data: dict) -> str:
             data["daily_shares"][i],
             data["daily_interactions"][i],
             data["daily_follower_change"][i],
+            data["daily_spend"][i] if data.get("daily_spend") else 0,
         ])
 
     # Campanhas
@@ -533,10 +535,14 @@ if gerar:
             profile["key"], date_from_str, date_to_str, report_type
         )
 
+        # Análise estratégica gerada por IA (rápida, usa Haiku)
+        ai_analysis = generate_strategic_analysis(data, profile, report_type)
+
         html = generate(
             profile, data, report_type,
             generated_at=datetime.now().strftime("%d/%m/%Y às %H:%M"),
             prev_data=prev,
+            ai_analysis=ai_analysis,
         )
 
     st.session_state.report_html   = html
@@ -545,6 +551,9 @@ if gerar:
     st.session_state.report_file   = f"relatorio_{profile['key']}_{date_from_str}_{date_to_str}.html"
     st.session_state.report_config = _current_config
     st.session_state.report_prev   = prev
+
+    # Injeta nicho do perfil nos dados antes de salvar no histórico
+    data["nicho"] = profile.get("nicho", "")
 
     # Salva histórico depois (não bloqueia o HTML)
     supabase_db.save_report_metrics(

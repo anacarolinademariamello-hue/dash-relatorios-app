@@ -1,0 +1,47 @@
+name: Métricas Semanais — Todos os Clientes
+
+on:
+  schedule:
+    # Toda segunda-feira às 11:00 UTC = 08:00 BRT
+    - cron: "0 11 * * 1"
+
+  # Permite rodar manualmente pelo GitHub (Actions → Run workflow)
+  workflow_dispatch:
+
+jobs:
+  generate-metrics:
+    name: Gerar métricas + enviar relatórios
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v4
+
+      - name: Configura Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Instala dependências
+        run: pip install requests anthropic
+
+      - name: Roda o script
+        env:
+          META_ACCESS_TOKEN:    ${{ secrets.META_ACCESS_TOKEN }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          ANTHROPIC_API_KEY:    ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_USER:           ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD:   ${{ secrets.GMAIL_APP_PASSWORD }}
+          EMAIL_TO:             ${{ secrets.EMAIL_TO }}
+        run: python scripts/weekly_metrics.py
+
+      - name: Aviso em caso de falha
+        if: failure()
+        run: |
+          echo "::error::A geração semanal falhou. Causas comuns:"
+          echo "::notice::1. Token Meta expirado — atualize META_ACCESS_TOKEN nos Secrets"
+          echo "::notice::2. Supabase offline ou credenciais incorretas"
+          echo "::notice::3. Cliente sem dados no período"
