@@ -160,6 +160,33 @@ def save_report_metrics(
     if not is_configured():
         return False
 
+    # Audiência — gênero, faixa etária, país dominante
+    aud = data.get("audience", {})
+    audience_summary = {}
+    if aud.get("has_data"):
+        gender = aud.get("gender_pct", {})
+        audience_summary = {
+            "pct_female":    round(gender.get("F", 0), 1),
+            "pct_male":      round(gender.get("M", 0), 1),
+            "dominant_age":  aud.get("dominant_age", ""),
+            "top_country":   aud["country_labels"][0] if aud.get("country_labels") else "",
+            "top_country_pct": round(aud["country_pcts"][0], 1) if aud.get("country_pcts") else 0,
+        }
+
+    # Top 3 campanhas com objetivo e status
+    top_campaigns = [
+        {
+            "name":      c.get("name", ""),
+            "objective": c.get("objective", ""),
+            "spend":     round(float(c.get("spend", 0)), 2),
+            "ctr":       round(float(c.get("ctr", 0)), 2),
+            "cpm":       round(float(c.get("cpm", 0)), 2),
+            "cpc":       round(float(c.get("cpc", 0)), 2),
+            "status":    c.get("status", ""),
+        }
+        for c in data.get("campaigns", [])[:3]
+    ]
+
     # Formatos de conteúdo — top 5 com métricas de performance
     content_formats = [
         {
@@ -207,6 +234,12 @@ def save_report_metrics(
         "best_format":        data.get("content", {}).get("best_format", ""),
         "content_formats":    content_formats,
         "best_hours":         best_hours,
+        "audience":           audience_summary,
+        "top_campaigns":      top_campaigns,
+        "cost_per_follower":  round(float(data.get("cost_per_follower", 0)), 2),
+        "posting_days":       data.get("posting_days", 0),
+        "total_posts":        data.get("total_posts_fetched", 0),
+        "nicho":              data.get("nicho", ""),
     }
 
     payload = {
