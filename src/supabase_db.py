@@ -80,6 +80,9 @@ def get_clients() -> dict:
             if isinstance(colors, str):
                 colors = json.loads(colors)
             tags = r.get("tags") or []
+            goals = r.get("goals") or {}
+            if isinstance(goals, str):
+                goals = json.loads(goals)
             profiles[display] = {
                 "key":                 r["key"],
                 "handle":              r["handle"],
@@ -94,6 +97,7 @@ def get_clients() -> dict:
                     or f"Relatório gerado para <strong>{r['name']}</strong> por Dash Digital."
                 ),
                 "colors": colors,
+                "goals":  goals,
             }
         return profiles
     except Exception:

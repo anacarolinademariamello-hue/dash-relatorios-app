@@ -926,6 +926,111 @@ def _best_hours_section(d: dict) -> str:
 </section>"""
 
 
+def _goals_section(profile: dict, data: dict, report_type: str) -> str:
+    """Cartão de metas do cliente vs métricas reais do período."""
+    goals = profile.get("goals") or {}
+    if not goals:
+        return ""
+
+    # Mapeamento goal_key → (label, valor_real, formato, menor_é_melhor)
+    # Valores reais extraídos do data dict
+    def _parse_num(s: str) -> float:
+        """Extrai número de string como 'R$5,00', '5%', '2.5'."""
+        import re as _re
+        s = s.replace("R$", "").replace("%", "").replace(".", "").replace(",", ".").strip()
+        m = _re.search(r"[\d.]+", s)
+        return float(m.group()) if m else 0.0
+
+    mappings = {
+        "ctr_minimo":            ("CTR mínimo",        data.get("avg_ctr", 0),      "{:.2f}%",  False),
+        "cpm_maximo":            ("CPM máximo",         data.get("avg_cpm", 0),      "R${:.2f}", True),
+        "cpc_maximo":            ("CPC máximo",         data.get("avg_cpc", 0),      "R${:.2f}", True),
+        "custo_por_seguidor":    ("Custo/seguidor",     None,                         "R${:.2f}", True),
+        "custo_por_venda":       ("Custo/venda",        None,                         "R${:.2f}", True),
+        "cpa_maximo":            ("CPA máximo",         None,                         "R${:.2f}", True),
+        "roas_minimo":           ("ROAS mínimo",        None,                         "{:.1f}x",  False),
+        "taxa_conversao_minima": ("Taxa de conversão",  None,                         "{:.2f}%",  False),
+    }
+
+    labels_br = {
+        "ctr_minimo":            "CTR mínimo",
+        "cpm_maximo":            "CPM máximo",
+        "cpc_maximo":            "CPC máximo",
+        "custo_por_seguidor":    "Custo máx. por seguidor",
+        "custo_por_venda":       "Custo máx. por venda",
+        "cpa_maximo":            "CPA máximo",
+        "roas_minimo":           "ROAS mínimo",
+        "taxa_conversao_minima": "Taxa de conversão mínima",
+    }
+
+    rows_html = ""
+    for key, goal_val in goals.items():
+        if not goal_val:
+            continue
+        label = labels_br.get(key, key)
+        goal_num = _parse_num(str(goal_val))
+
+        if key in mappings:
+            _, real_val, fmt, menor_melhor = mappings[key]
+        else:
+            real_val, fmt, menor_melhor = None, "{:.2f}", True
+
+        if real_val is not None and real_val > 0 and goal_num > 0:
+            real_fmt = fmt.format(real_val)
+            if menor_melhor:
+                bateu = real_val <= goal_num
+            else:
+                bateu = real_val >= goal_num
+            badge_color = "#16a34a" if bateu else "#dc2626"
+            badge_bg    = "#f0fdf4" if bateu else "#fef2f2"
+            badge_bd    = "#bbf7d0" if bateu else "#fecaca"
+            badge_txt   = "✅ Atingiu" if bateu else "❌ Não atingiu"
+            real_str = f'<span style="font-weight:700;color:#111;">{real_fmt}</span>'
+            badge = (
+                f'<span style="background:{badge_bg};color:{badge_color};border:1px solid {badge_bd};'
+                f'border-radius:6px;padding:2px 10px;font-size:.75rem;font-weight:700;">{badge_txt}</span>'
+            )
+        else:
+            real_str = '<span style="color:#9ca3af;font-size:.82rem;">Dado não disponível</span>'
+            badge = ""
+
+        rows_html += (
+            f'<tr style="border-bottom:1px solid #f0f3f8;">'
+            f'<td style="padding:10px 12px;font-size:.88rem;color:#374151;">{label}</td>'
+            f'<td style="padding:10px 12px;font-size:.88rem;color:#374151;font-weight:600;">{goal_val}</td>'
+            f'<td style="padding:10px 12px;">{real_str}</td>'
+            f'<td style="padding:10px 12px;">{badge}</td>'
+            f'</tr>'
+        )
+
+    if not rows_html:
+        return ""
+
+    return f"""
+<section class="section">
+<h2 class="section-title">🎯 Metas do Cliente vs Resultado</h2>
+<p style="font-size:.88rem;color:var(--muted);margin-bottom:16px;">
+  Comparativo entre as metas definidas no cadastro do cliente e os resultados reais do período.
+  Métricas sem dado disponível dependem de informações de conversão externas.
+</p>
+<div style="overflow-x:auto;">
+<table style="width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.06);">
+<thead>
+<tr style="background:#f8fafc;">
+  <th style="padding:10px 12px;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6b7280;">Métrica</th>
+  <th style="padding:10px 12px;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6b7280;">Meta</th>
+  <th style="padding:10px 12px;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6b7280;">Real no Período</th>
+  <th style="padding:10px 12px;text-align:left;font-size:.75rem;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6b7280;">Status</th>
+</tr>
+</thead>
+<tbody>
+{rows_html}
+</tbody>
+</table>
+</div>
+</section>"""
+
+
 def _footer(profile: dict, d: dict, generated_at: str = "") -> str:
     gen_note = f" &nbsp;|&nbsp; Gerado em {generated_at}" if generated_at else ""
     return (
@@ -983,7 +1088,10 @@ def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at
         # 8. Análise estratégica
         _strategic(data, report_type),
 
-        # 9. Melhores horários para publicar
+        # 9. Metas do cliente vs real
+        _goals_section(profile, data, report_type),
+
+        # 10. Melhores horários para publicar
         _best_hours_section(data) if report_type != "Só Pago" else "",
 
         # 10. Recomendações feed + stories
