@@ -23,13 +23,14 @@ from src import supabase_db
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def _fetch_all_data(profile_key: str, date_from: str, date_to: str, report_type: str) -> dict:
+def _fetch_all_data(profile_key: str, date_from: str, date_to: str, report_type: str, profile: dict = None) -> dict:
     """
     Busca todos os dados Meta em paralelo (5 requisições simultâneas).
     Resultado em cache por 30 min — nova geração para o mesmo período
     é instantânea até o token expirar ou o TTL vencer.
     """
-    profile = PROFILES[profile_key]
+    if profile is None:
+        profile = PROFILES[profile_key]
 
     tasks = [
         ("ig_rows",      fetch_instagram_daily,    (profile, date_from, date_to)),
@@ -487,7 +488,7 @@ if gerar:
     # ── Busca paralela com cache 30 min ──────────────────────────────────────
     with st.spinner(f"⏳ Buscando dados de {profile['handle']} via Meta Graph API…"):
         try:
-            fetched = _fetch_all_data(profile["key"], date_from_str, date_to_str, report_type)
+            fetched = _fetch_all_data(profile["key"], date_from_str, date_to_str, report_type, profile)
         except PermissionError as e:
             st.error(f"🔐 {e}")
             st.stop()
