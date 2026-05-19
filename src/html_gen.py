@@ -172,14 +172,15 @@ def _kpis(d: dict, report_type: str) -> str:
             f'<div class="kpi-card"><span class="kpi-icon">💾</span><div class="kpi-val">{_br(d["total_saves"])}</div><div class="kpi-label">Salvamentos</div><span class="kpi-badge badge-gold">saves</span></div>',
             f'<div class="kpi-card"><span class="kpi-icon">🔁</span><div class="kpi-val">{_br(d["total_shares"])}</div><div class="kpi-label">Compartilhamentos</div></div>',
             f'<div class="kpi-card"><span class="kpi-icon">💬</span><div class="kpi-val">{_br(d["total_comments"])}</div><div class="kpi-label">Comentários</div></div>',
-            (lambda fg=d["followers_gained"]: (
-                f'<div class="kpi-card"><span class="kpi-icon">{"📈" if fg >= 0 else "📉"}</span>'
-                f'<div class="kpi-val">{"+" if fg >= 0 else ""}{_br(fg)}</div>'
+            (
+                f'<div class="kpi-card">'
+                f'<span class="kpi-icon">{"📈" if d["followers_gained"] >= 0 else "📉"}</span>'
+                f'<div class="kpi-val">{"+" if d["followers_gained"] >= 0 else ""}{_br(d["followers_gained"])}</div>'
                 f'<div class="kpi-label">Seguidores</div>'
                 + (f'<span class="kpi-badge badge-green">🌱 {_br(d["followers_organic_est"])} org · 💰 {_br(d["followers_paid_est"])} pago</span></div>'
                    if report_type != "Só Orgânico" else
                    f'<span class="kpi-badge badge-blue">total todas as fontes*</span></div>')
-            )(),
+            ),
         ]
     if report_type != "Só Orgânico":
         cards += [
