@@ -390,30 +390,41 @@ def fetch_instagram_top_posts(profile: dict, date_from: str, date_to: str) -> li
 # ── Meta Ads ──────────────────────────────────────────────────────────────────
 
 def fetch_meta_ads_daily(profile: dict, date_from: str, date_to: str) -> list:
-    """Daily Meta Ads data by campaign via Marketing API."""
+    """
+    Daily Meta Ads data by campaign via Marketing API.
+    Follows pagination to garantee all campaigns and all days are included.
+    """
     act_id = profile["facebook_account_id"]
     token  = _token()
 
-    resp = _get(f"{GRAPH}/act_{act_id}/insights", {
+    url = f"{GRAPH}/act_{act_id}/insights"
+    params = {
         "fields":         "campaign_name,objective,spend,impressions,reach,clicks,cpm,cpc,ctr",
         "level":          "campaign",
         "time_range":     json.dumps({"since": date_from, "until": date_to}),
         "time_increment": 1,
+        "limit":          500,   # máximo por página — evita truncamento
         "access_token":   token,
-    })
+    }
 
     rows = []
-    for item in resp.get("data", []):
-        rows.append({
-            "date":          item.get("date_start", ""),
-            "campaign_name": item.get("campaign_name", ""),
-            "objective":     item.get("objective", ""),
-            "spend":         item.get("spend", 0),
-            "impressions":   item.get("impressions", 0),
-            "reach":         item.get("reach", 0),
-            "clicks":        item.get("clicks", 0),
-            "cpm":           item.get("cpm", 0),
-            "cpc":           item.get("cpc", 0),
-            "ctr":           item.get("ctr", 0),
-        })
+    while url:
+        resp  = _get(url, params)
+        for item in resp.get("data", []):
+            rows.append({
+                "date":          item.get("date_start", ""),
+                "campaign_name": item.get("campaign_name", ""),
+                "objective":     item.get("objective", ""),
+                "spend":         item.get("spend", 0),
+                "impressions":   item.get("impressions", 0),
+                "reach":         item.get("reach", 0),
+                "clicks":        item.get("clicks", 0),
+                "cpm":           item.get("cpm", 0),
+                "cpc":           item.get("cpc", 0),
+                "ctr":           item.get("ctr", 0),
+            })
+        # Segue paginação — next já contém todos os parâmetros na URL
+        url    = resp.get("paging", {}).get("next")
+        params = {}
+
     return rows

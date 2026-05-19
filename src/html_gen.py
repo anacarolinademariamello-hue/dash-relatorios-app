@@ -163,7 +163,13 @@ def _kpis(d: dict, report_type: str) -> str:
             f'<div class="kpi-card"><span class="kpi-icon">💾</span><div class="kpi-val">{_br(d["total_saves"])}</div><div class="kpi-label">Salvamentos</div><span class="kpi-badge badge-gold">saves</span></div>',
             f'<div class="kpi-card"><span class="kpi-icon">🔁</span><div class="kpi-val">{_br(d["total_shares"])}</div><div class="kpi-label">Compartilhamentos</div></div>',
             f'<div class="kpi-card"><span class="kpi-icon">💬</span><div class="kpi-val">{_br(d["total_comments"])}</div><div class="kpi-label">Comentários</div></div>',
-            f'<div class="kpi-card"><span class="kpi-icon">📈</span><div class="kpi-val">+{_br(d["followers_gained"])}</div><div class="kpi-label">Seguidores Ganhos</div><span class="kpi-badge badge-green">🌱 {_br(d["followers_organic_est"])} org · 💰 {_br(d["followers_paid_est"])} pago</span></div>',
+            (
+                f'<div class="kpi-card"><span class="kpi-icon">📈</span><div class="kpi-val">+{_br(d["followers_gained"])}</div><div class="kpi-label">Seguidores Ganhos</div>'
+                f'<span class="kpi-badge badge-green">🌱 {_br(d["followers_organic_est"])} org · 💰 {_br(d["followers_paid_est"])} pago</span></div>'
+                if report_type != "Só Orgânico" else
+                f'<div class="kpi-card"><span class="kpi-icon">📈</span><div class="kpi-val">+{_br(d["followers_gained"])}</div><div class="kpi-label">Seguidores Ganhos</div>'
+                f'<span class="kpi-badge badge-blue">total todas as fontes*</span></div>'
+            ),
         ]
     if report_type != "Só Orgânico":
         cards += [
@@ -188,7 +194,11 @@ def _obs_card(d: dict, report_type: str) -> str:
         f"{len(d['campaigns'])} campanha(s)."
     )
     if report_type == "Só Orgânico":
-        body = f"Relatório focado no desempenho orgânico de {d['period_label']}. {organic_note}"
+        body = (
+            f"Relatório focado no desempenho orgânico de {d['period_label']}. {organic_note} "
+            f"<em>*Seguidores ganhos refletem o total do período — o Instagram não separa seguidores orgânicos de pagos na API. "
+            f"Para estimar a parcela paga, gere o relatório Geral.</em>"
+        )
     elif report_type == "Só Pago":
         body = f"Relatório focado no tráfego pago de {d['period_label']}. {paid_note}"
     else:
