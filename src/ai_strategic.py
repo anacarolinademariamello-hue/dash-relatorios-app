@@ -12,10 +12,12 @@ import re
 
 
 def _build_prompt(data: dict, profile: dict, report_type: str) -> str:
-    name    = profile.get("name", "o cliente")
-    nicho   = profile.get("nicho", "")
-    goals   = profile.get("goals") or {}
-    period  = data.get("period_label", "")
+    name         = profile.get("name", "o cliente")
+    nicho        = profile.get("nicho", "")
+    sub_nicho    = profile.get("sub_nicho", "")
+    publico_alvo = profile.get("publico_alvo", "")
+    goals        = profile.get("goals") or {}
+    period       = data.get("period_label", "")
 
     def _br(v, d=0):
         try:
@@ -128,7 +130,8 @@ def _build_prompt(data: dict, profile: dict, report_type: str) -> str:
 
 ## CLIENTE
 - Nome: {name}
-- Nicho: {nicho or "Não informado"}
+- Nicho: {nicho or "Não informado"}{f" › {sub_nicho}" if sub_nicho else ""}
+- Público-alvo: {publico_alvo or "Não informado"}
 - Período: {period}
 - Tipo de relatório: {report_type}
 

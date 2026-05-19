@@ -70,7 +70,7 @@ def get_clients() -> dict:
             params={
                 "active": "eq.true",
                 "order":  "name.asc",
-                "select": "key,name,handle,instagram_id,facebook_account_id,bio,tags,avatar,footer,colors,goals,nicho,sub_nicho",
+                "select": "key,name,handle,instagram_id,facebook_account_id,bio,tags,avatar,footer,colors,goals,nicho,sub_nicho,publico_alvo",
             },
             timeout=10,
         )
@@ -101,9 +101,10 @@ def get_clients() -> dict:
                     or f"Relatório gerado para <strong>{r['name']}</strong> por Dash Digital."
                 ),
                 "colors": colors,
-                "goals":     goals,
-                "nicho":     r.get("nicho") or "",
-                "sub_nicho": r.get("sub_nicho") or "",
+                "goals":       goals,
+                "nicho":       r.get("nicho") or "",
+                "sub_nicho":   r.get("sub_nicho") or "",
+                "publico_alvo": r.get("publico_alvo") or "",
             }
         return profiles
     except Exception:
@@ -157,6 +158,7 @@ def save_report_metrics(
     date_to: str,
     report_type: str,
     data: dict,
+    ai_strategic: Optional[dict] = None,
 ) -> bool:
     """
     Save aggregated metrics snapshot to report_history.
@@ -244,6 +246,10 @@ def save_report_metrics(
         "cost_per_follower":  round(float(data.get("cost_per_follower", 0)), 2),
         "total_posts":        data.get("total_posts_fetched", 0),
         "nicho":              data.get("nicho", ""),
+        "sub_nicho":          data.get("sub_nicho", ""),
+        "publico_alvo":       data.get("publico_alvo", ""),
+        # Análise estratégica gerada pela IA (persistida para o gerador de copies)
+        "ai_strategic":       ai_strategic,
     }
 
     payload = {

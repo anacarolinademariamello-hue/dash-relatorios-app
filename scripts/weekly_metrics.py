@@ -321,19 +321,14 @@ def process_client(profile_key: str, profile: dict, date_from: str, date_to: str
             date_from,
             date_to,
         )
-        data["nicho"] = profile.get("nicho", "")
+        data["nicho"]        = profile.get("nicho", "")
+        data["sub_nicho"]    = profile.get("sub_nicho", "")
+        data["publico_alvo"] = profile.get("publico_alvo", "")
     except Exception as exc:
         log.error("  ✗ Erro ao processar métricas: %s", exc)
         return False
 
-    # 3. Salva em report_history (alimenta a IA)
-    ok = supabase_db.save_report_metrics(profile_key, date_from, date_to, "Geral", data)
-    if ok:
-        log.info("  ✓ Métricas salvas no Supabase")
-    else:
-        log.error("  ✗ Falha ao salvar métricas")
-
-    # 4. Gera análise estratégica com IA (opcional, com fallback)
+    # 3. Gera análise estratégica com IA ANTES de salvar (para persistir junto)
     ai_analysis = None
     try:
         ai_analysis = generate_strategic_analysis(data, profile, "Geral")
@@ -341,6 +336,13 @@ def process_client(profile_key: str, profile: dict, date_from: str, date_to: str
             log.info("  ✓ Análise estratégica gerada pela IA")
     except Exception:
         log.warning("  ⚠ Análise estratégica indisponível — usando fallback")
+
+    # 4. Salva em report_history (com análise estratégica embutida — alimenta a IA)
+    ok = supabase_db.save_report_metrics(profile_key, date_from, date_to, "Geral", data, ai_strategic=ai_analysis)
+    if ok:
+        log.info("  ✓ Métricas salvas no Supabase")
+    else:
+        log.error("  ✗ Falha ao salvar métricas")
 
     # 5. Gera HTML do relatório
     try:

@@ -552,12 +552,15 @@ if gerar:
     st.session_state.report_config = _current_config
     st.session_state.report_prev   = prev
 
-    # Injeta nicho do perfil nos dados antes de salvar no histórico
-    data["nicho"] = profile.get("nicho", "")
+    # Injeta campos do perfil nos dados antes de salvar no histórico
+    data["nicho"]        = profile.get("nicho", "")
+    data["sub_nicho"]    = profile.get("sub_nicho", "")
+    data["publico_alvo"] = profile.get("publico_alvo", "")
 
-    # Salva histórico depois (não bloqueia o HTML)
+    # Salva histórico depois (não bloqueia o HTML) — inclui análise estratégica da IA
     supabase_db.save_report_metrics(
-        profile["key"], date_from_str, date_to_str, report_type, data
+        profile["key"], date_from_str, date_to_str, report_type, data,
+        ai_strategic=ai_analysis,
     )
 
 if not st.session_state.report_html:
