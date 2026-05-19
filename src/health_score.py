@@ -41,11 +41,11 @@ def render_card_html(health: dict) -> str:
     emoji = "&#129001;" if score >= 70 else "&#128993;" if score >= 55 else "&#129000;" if score >= 35 else "&#128308;"
 
     label_map = [
-        ("frequencia",   "Frequ&#234;ncia de postagem",          20),
-        ("engajamento",  "Engajamento org&#226;nico",            25),
-        ("crescimento",  "Crescimento de seguidores",            20),
-        ("ctr",          "CTR de campanhas",                     20),
-        ("consistencia", "Consist&#234;ncia vs per&#237;odo ant.", 15),
+        ("frequencia",   "Frequ&#234;ncia de postagem <span style='font-weight:400;color:#9ca3af;'>(quantos dias do per&#237;odo tiveram pelo menos 1 post)</span>",          20),
+        ("engajamento",  "Engajamento org&#226;nico <span style='font-weight:400;color:#9ca3af;'>(intera&#231;&#245;es totais &#247; seguidores)</span>",                      25),
+        ("crescimento",  "Crescimento de seguidores <span style='font-weight:400;color:#9ca3af;'>(seguidores ganhos &#247; total de seguidores)</span>",                      20),
+        ("ctr",          "CTR de campanhas <span style='font-weight:400;color:#9ca3af;'>(taxa de clique nos an&#250;ncios — neutro 10/20 sem ads)</span>",                    20),
+        ("consistencia", "Consist&#234;ncia vs per&#237;odo ant. <span style='font-weight:400;color:#9ca3af;'>(varia&#231;&#227;o do alcan&#231;e vs per&#237;odo anterior)</span>", 15),
     ]
     bars_html = ""
     for key, label, max_val in label_map:
