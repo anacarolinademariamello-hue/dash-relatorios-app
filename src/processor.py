@@ -273,13 +273,13 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
 
     organic_pct  = round(total_organic / total_reach * 100, 1)        if total_reach        else 0
     paid_pct     = round(100 - organic_pct, 1)
-    # Engajamento orgânico calculado sobre seguidores (padrão do setor),
-    # não sobre alcance orgânico — evita inflação por sobreposição de audiências.
-    org_eng_rate = round(total_interactions / followers * 100, 2) if followers else 0
     avg_cpm      = round(total_spend / total_impressions * 1000, 2)    if total_impressions  else 0
     avg_cpc      = round(total_spend / total_clicks, 2)                if total_clicks       else 0
 
     followers   = int(profile_info.get("followers_count") or 0)
+    # Engajamento orgânico calculado sobre seguidores (padrão do setor),
+    # não sobre alcance orgânico — evita inflação por sobreposição de audiências.
+    org_eng_rate = round(total_interactions / followers * 100, 2) if followers else 0
     following   = int(profile_info.get("follows_count")   or 0)
     media       = int(profile_info.get("media_count")     or 0)
     picture_url = profile_info.get("profile_picture_url", "")
