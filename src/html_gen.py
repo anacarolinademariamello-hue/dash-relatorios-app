@@ -179,7 +179,7 @@ def _obs_card(d: dict, report_type: str) -> str:
     organic_note = (
         f"O alcance orgânico de <strong>{_br(d['total_organic'])} pessoas ({d['organic_pct']}%)</strong> "
         f"com engajamento orgânico de <strong>{_br(d['org_eng_rate'],2)}%</strong> "
-        f"({'acima' if d['org_eng_rate'] > 5 else 'dentro'} do benchmark de 3–5%)."
+        f"({'acima' if d['org_eng_rate'] > 5 else 'dentro' if d['org_eng_rate'] >= 3 else 'abaixo'} do benchmark de 3–5%)."
     )
     paid_note = (
         f"O investimento de <strong>R${_br(d['total_spend'],2)}</strong> gerou <strong>"
@@ -799,7 +799,7 @@ def _strategic(d: dict, report_type: str, profile: dict = None, ai_analysis: dic
 
     if report_type != "Só Pago":
         eng = d["org_eng_rate"]
-        bench_msg = "muito acima do benchmark de 3–5%" if eng > 5 else "dentro do benchmark de 3–5%"
+        bench_msg = "muito acima do benchmark de 3–5%" if eng > 5 else "dentro do benchmark de 3–5%" if eng >= 3 else "abaixo do benchmark de 3–5%"
         strengths.append(("🔥", f"Engajamento orgânico de <strong>{_br(eng,2)}%</strong> — {bench_msg} para o nicho."))
 
         saves = d["total_saves"]
