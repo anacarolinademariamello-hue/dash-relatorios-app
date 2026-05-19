@@ -31,7 +31,13 @@ def _fetch_all_data(profile_key: str, date_from: str, date_to: str, report_type:
     é instantânea até o token expirar ou o TTL vencer.
     """
     if profile is None:
-        profile = PROFILES[profile_key]
+        # Fallback: busca por key dentro de PROFILES (chaves são display names)
+        profile = next(
+            (p for p in PROFILES.values() if p.get("key") == profile_key),
+            None,
+        )
+        if profile is None:
+            raise ValueError(f"Perfil '{profile_key}' não encontrado.")
 
     tasks = [
         ("ig_rows",      fetch_instagram_daily,    (profile, date_from, date_to)),
