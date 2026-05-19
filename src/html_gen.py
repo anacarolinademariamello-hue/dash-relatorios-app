@@ -689,6 +689,78 @@ _NICHE_STRATEGIC = {
 }
 
 
+def _health_score_card(health: dict) -> str:
+    """Renderiza o card de Score de Saúde no topo do relatório."""
+    if not health:
+        return ""
+
+    score     = health["score"]
+    grade     = health["grade"]
+    color     = health["color"]
+    delta     = health.get("delta")
+    breakdown = health.get("breakdown", {})
+
+    delta_html = ""
+    if delta is not None:
+        d_sign  = "+" if delta >= 0 else ""
+        d_color = "#16a34a" if delta >= 0 else "#dc2626"
+        d_arrow = "▲" if delta >= 0 else "▼"
+        delta_html = (
+            f'<span style="font-size:.85rem;font-weight:600;color:{d_color};margin-left:12px;">'
+            f'{d_arrow} {d_sign}{delta} pts vs período anterior</span>'
+        )
+
+    emoji = "🟢" if score >= 70 else "🟡" if score >= 55 else "🟠" if score >= 35 else "🔴"
+
+    _label_map = [
+        ("frequencia",   "Frequência de postagem",          20),
+        ("engajamento",  "Engajamento orgânico",            25),
+        ("crescimento",  "Crescimento de seguidores",       20),
+        ("ctr",          "CTR de campanhas",                20),
+        ("consistencia", "Consistência vs período anterior", 15),
+    ]
+    bars_html = ""
+    for key, label, max_val in _label_map:
+        val       = breakdown.get(key, 0)
+        pct       = int(val / max_val * 100) if max_val else 0
+        bar_color = "#16a34a" if pct >= 70 else "#d97706" if pct >= 40 else "#dc2626"
+        bars_html += f"""
+        <div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:.82rem;color:#6b7280;">{label}</span>
+            <span style="font-size:.82rem;font-weight:700;color:#374151;">{val}/{max_val}</span>
+          </div>
+          <div style="background:#f3f4f6;border-radius:6px;height:8px;">
+            <div style="background:{bar_color};width:{pct}%;height:8px;border-radius:6px;"></div>
+          </div>
+        </div>"""
+
+    return f"""
+<section class="section">
+  <h2 class="section-title">🏥 Score de Saúde da Conta</h2>
+  <div style="background:#fff;border:2px solid {color};border-radius:16px;padding:28px 32px;">
+    <div style="display:flex;align-items:center;gap:24px;margin-bottom:24px;flex-wrap:wrap;">
+      <div style="font-size:5rem;line-height:1;">{emoji}</div>
+      <div>
+        <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:4px;">Score de Saúde</div>
+        <div style="display:flex;align-items:baseline;gap:4px;">
+          <span style="font-size:4rem;font-weight:800;color:{color};line-height:1;">{score}</span>
+          <span style="font-size:1.4rem;color:#9ca3af;">/100</span>
+          {delta_html}
+        </div>
+        <div style="font-size:1.2rem;font-weight:700;color:{color};margin-top:4px;">{grade}</div>
+      </div>
+    </div>
+    <div style="max-width:600px;">
+      {bars_html}
+    </div>
+    <div style="margin-top:16px;padding:12px 16px;background:#f8fafc;border-radius:10px;font-size:.8rem;color:#6b7280;">
+      💡 Score calculado com base no período selecionado. CTR de campanhas é neutro (10/20) quando não há tráfego pago no período.
+    </div>
+  </div>
+</section>"""
+
+
 def _strategic(d: dict, report_type: str, profile: dict = None, ai_analysis: dict = None) -> str:
     ct       = d.get("content", {})
     aud      = d.get("audience", {})
@@ -1222,7 +1294,7 @@ def _comparativo_section(current: dict, previous: dict) -> str:
     )
 
 
-def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at: str = "", prev_data: dict = None, ai_analysis: dict = None) -> str:
+def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at: str = "", prev_data: dict = None, ai_analysis: dict = None, health_score: dict = None) -> str:
     import time
     uid = str(int(time.time() * 1000))[-6:]
     c   = profile["colors"]
@@ -1236,6 +1308,9 @@ def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at
         "</head><body>",
         _header(profile, data),
         "<div class='container'>",
+
+        # 0. Score de saúde (quando disponível)
+        _health_score_card(health_score),
 
         # 1. Métricas do período
         "<section class='section'>",

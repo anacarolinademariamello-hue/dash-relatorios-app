@@ -43,6 +43,7 @@ from src.processor import process
 from src.html_gen import generate
 from src.ai_strategic import generate_strategic_analysis
 from src import supabase_db
+from src import health_score as hs
 
 logging.basicConfig(
     level=logging.INFO,
@@ -169,6 +170,76 @@ def _send_token_alert(days_left: int, expires_at: str) -> None:
         log.error("Falha ao enviar alerta de token: %s", exc)
 
 
+# ── Score de Saúde ────────────────────────────────────────────────────────────
+
+def _calculate_health_score(data: dict, prev_metrics: dict | None) -> dict:
+    """Delega para src.health_score.calculate (módulo compartilhado com o app manual)."""
+    return hs.calculate(data, prev_metrics)
+
+
+def _build_score_section(health: dict) -> str:
+    """Monta o bloco HTML do Score de Saúde para o e-mail individual."""
+    if not health:
+        return ""
+
+    score     = health["score"]
+    grade     = health["grade"]
+    color     = health["color"]
+    delta     = health.get("delta")
+    breakdown = health.get("breakdown", {})
+
+    delta_html = ""
+    if delta is not None:
+        d_sign  = "+" if delta >= 0 else ""
+        d_color = "#16a34a" if delta >= 0 else "#dc2626"
+        d_arrow = "▲" if delta >= 0 else "▼"
+        delta_html = (
+            f'<div style="font-size:.8rem;color:{d_color};margin-top:4px;">'
+            f'{d_arrow} {d_sign}{delta} pts vs semana anterior</div>'
+        )
+
+    emoji = "🟢" if score >= 70 else "🟡" if score >= 55 else "🟠" if score >= 35 else "🔴"
+
+    _label_map = [
+        ("frequencia",   "Frequência de postagem",         20),
+        ("engajamento",  "Engajamento orgânico",           25),
+        ("crescimento",  "Crescimento de seguidores",      20),
+        ("ctr",          "CTR de campanhas",               20),
+        ("consistencia", "Consistência (vs sem. anterior)", 15),
+    ]
+    bars_html = ""
+    for key, label, max_val in _label_map:
+        val       = breakdown.get(key, 0)
+        pct       = int(val / max_val * 100) if max_val else 0
+        bar_color = "#16a34a" if pct >= 70 else "#d97706" if pct >= 40 else "#dc2626"
+        bars_html += f"""
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;font-size:.75rem;color:#6b7280;margin-bottom:3px;">
+            <span>{label}</span>
+            <span style="font-weight:600;color:#374151;">{val}/{max_val}</span>
+          </div>
+          <div style="background:#f3f4f6;border-radius:4px;height:7px;">
+            <div style="background:{bar_color};width:{pct}%;height:7px;border-radius:4px;"></div>
+          </div>
+        </div>"""
+
+    return f"""
+  <div style="background:#fff;border:2px solid {color};border-radius:14px;padding:20px 24px;margin-bottom:20px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px;">
+      <div>
+        <div style="font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;margin-bottom:4px;">Score de Saúde da Conta</div>
+        <div style="font-size:2.8rem;font-weight:800;color:{color};line-height:1.1;">
+          {score}<span style="font-size:1rem;font-weight:400;color:#9ca3af;">/100</span>
+        </div>
+        <div style="font-size:.95rem;font-weight:700;color:{color};margin-top:2px;">{grade}</div>
+        {delta_html}
+      </div>
+      <div style="font-size:3.5rem;line-height:1;">{emoji}</div>
+    </div>
+    {bars_html}
+  </div>"""
+
+
 # ── Período ───────────────────────────────────────────────────────────────────
 
 def _last_week() -> tuple[str, str]:
@@ -275,7 +346,7 @@ def _build_ai_section(ai_analysis: dict = None) -> str:
   </div>"""
 
 
-def _build_email_body(name: str, handle: str, data: dict, period: str, ai_analysis: dict = None) -> str:
+def _build_email_body(name: str, handle: str, data: dict, period: str, ai_analysis: dict = None, health_score: dict = None) -> str:
     """Monta o corpo HTML do e-mail com resumo das métricas e análise estratégica."""
     reach       = _br(data.get("total_reach", 0))
     organic     = _br(data.get("total_organic", 0))
@@ -346,6 +417,8 @@ def _build_email_body(name: str, handle: str, data: dict, period: str, ai_analys
     </div>
   </div>
 
+  {_build_score_section(health_score)}
+
   <!-- KPIs orgânicos -->
   <h3 style="color:#003f7c;font-size:1rem;margin:0 0 12px;">📈 Métricas Orgânicas</h3>
   <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px;">
@@ -407,6 +480,109 @@ def _build_email_body(name: str, handle: str, data: dict, period: str, ai_analys
 </html>"""
 
 
+def _send_summary_email(scores: list, date_from: str, date_to: str) -> None:
+    """Envia e-mail de visão geral com o score de saúde de todos os clientes."""
+    if not scores or not _email_configured():
+        return
+
+    gmail_user   = os.environ.get("GMAIL_USER", "")
+    gmail_pass   = os.environ.get("GMAIL_APP_PASSWORD", "")
+    recipients   = [r.strip() for r in os.environ.get("EMAIL_TO", "").split(",") if r.strip()]
+    generated_at = datetime.now().strftime("%d/%m/%Y às %H:%M")
+    period       = f"{date_from} → {date_to}"
+
+    rows_html = ""
+    for s in sorted(scores, key=lambda x: x["score"], reverse=True):
+        score = s["score"]
+        grade = s["grade"]
+        color = s["color"]
+        name  = s["name"]
+        handle = s.get("handle", "")
+        delta  = s.get("delta")
+        emoji  = "🟢" if score >= 70 else "🟡" if score >= 55 else "🟠" if score >= 35 else "🔴"
+
+        delta_html = ""
+        if delta is not None:
+            d_sign  = "+" if delta >= 0 else ""
+            d_color = "#16a34a" if delta >= 0 else "#dc2626"
+            delta_html = f'<span style="font-size:.72rem;color:{d_color};margin-left:6px;">{d_sign}{delta}pts</span>'
+
+        rows_html += f"""
+        <tr>
+          <td style="padding:14px 16px;border-bottom:1px solid #f3f4f6;">
+            <div style="font-weight:600;font-size:.9rem;color:#111827;">{name}</div>
+            <div style="font-size:.75rem;color:#9ca3af;">{handle}</div>
+          </td>
+          <td style="padding:14px 16px;border-bottom:1px solid #f3f4f6;text-align:center;">
+            <span style="font-size:1.8rem;font-weight:800;color:{color};">{score}</span>
+            <span style="font-size:.8rem;color:#9ca3af;">/100</span>
+            {delta_html}
+          </td>
+          <td style="padding:14px 16px;border-bottom:1px solid #f3f4f6;text-align:center;">
+            {emoji} <span style="font-size:.85rem;font-weight:600;color:{color};">{grade}</span>
+          </td>
+        </tr>"""
+
+    critical = [s for s in scores if s["score"] < 55]
+    alert_html = ""
+    if critical:
+        names_str = ", ".join(s["name"] for s in critical)
+        alert_html = f"""
+  <div style="background:#fef3c7;border:1px solid #fcd34d;border-radius:12px;padding:14px 18px;font-size:.82rem;color:#92400e;margin-bottom:20px;">
+    ⚠️ Clientes que precisam de atenção esta semana: <strong>{names_str}</strong>. Verifique os relatórios individuais.
+  </div>"""
+
+    html = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f0f3f8;font-family:'Segoe UI',system-ui,sans-serif;">
+<div style="max-width:560px;margin:0 auto;padding:24px 16px;">
+
+  <div style="background:linear-gradient(135deg,#003f7c,#1a5a9a);border-radius:16px;padding:28px 32px;color:#fff;text-align:center;margin-bottom:20px;">
+    <div style="font-size:2rem;margin-bottom:8px;">🏥</div>
+    <h1 style="margin:0 0 6px;font-size:1.4rem;font-weight:700;">Score de Saúde — Visão Geral</h1>
+    <div style="opacity:.85;font-size:.9rem;">Dash Digital · Semana de {period}</div>
+  </div>
+
+  <div style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;margin-bottom:20px;">
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr style="background:#f8fafc;">
+          <th style="padding:10px 16px;text-align:left;font-size:.75rem;color:#6b7280;font-weight:600;">Cliente</th>
+          <th style="padding:10px 16px;text-align:center;font-size:.75rem;color:#6b7280;font-weight:600;">Score</th>
+          <th style="padding:10px 16px;text-align:center;font-size:.75rem;color:#6b7280;font-weight:600;">Situação</th>
+        </tr>
+      </thead>
+      <tbody>{rows_html}</tbody>
+    </table>
+  </div>
+
+  {alert_html}
+
+  <div style="text-align:center;font-size:.72rem;color:#9ca3af;">
+    Gerado automaticamente em {generated_at} · Dash Digital · @dashdgt
+  </div>
+</div>
+</body>
+</html>"""
+
+    subject = f"🏥 Score de Saúde Semanal — {len(scores)} cliente{'s' if len(scores) != 1 else ''} · {date_from}"
+    msg = MIMEMultipart("mixed")
+    msg["Subject"] = subject
+    msg["From"]    = f"Dash Digital Relatórios <{gmail_user}>"
+    msg["To"]      = ", ".join(recipients)
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+            smtp.ehlo(); smtp.starttls()
+            smtp.login(gmail_user, gmail_pass)
+            smtp.sendmail(gmail_user, recipients, msg.as_bytes())
+        log.info("✉ E-mail de resumo de saúde enviado para: %s", ", ".join(recipients))
+    except Exception as exc:
+        log.error("Falha ao enviar e-mail de resumo de saúde: %s", exc)
+
+
 def send_email(subject: str, body_html: str, html_report: str, filename: str) -> bool:
     """Envia e-mail via Gmail SMTP com o relatório HTML como anexo."""
     gmail_user  = os.environ.get("GMAIL_USER", "")
@@ -448,7 +624,7 @@ def send_email(subject: str, body_html: str, html_report: str, filename: str) ->
 
 # ── Processa um cliente ───────────────────────────────────────────────────────
 
-def process_client(profile_key: str, profile: dict, date_from: str, date_to: str) -> bool:
+def process_client(profile_key: str, profile: dict, date_from: str, date_to: str) -> tuple:
     name   = profile.get("name", profile_key)
     handle = profile.get("handle", "")
     log.info("→ Processando: %s (%s a %s)", name, date_from, date_to)
@@ -458,11 +634,11 @@ def process_client(profile_key: str, profile: dict, date_from: str, date_to: str
         fetched = _fetch_client_data(profile, date_from, date_to)
     except Exception as exc:
         log.error("  ✗ Erro ao buscar dados: %s", exc)
-        return False
+        return False, None
 
     if not fetched["ig_rows"]:
         log.warning("  ⚠ Nenhum dado de alcance no período — pulando.")
-        return False
+        return False, None
 
     # 2. Processa métricas
     try:
@@ -480,9 +656,21 @@ def process_client(profile_key: str, profile: dict, date_from: str, date_to: str
         data["publico_alvo"] = profile.get("publico_alvo", "")
     except Exception as exc:
         log.error("  ✗ Erro ao processar métricas: %s", exc)
-        return False
+        return False, None
 
-    # 3. Gera análise estratégica com IA ANTES de salvar (para persistir junto)
+    # 3. Busca métricas do período anterior (para consistência e delta do score)
+    prev_metrics = None
+    try:
+        prev_metrics = supabase_db.get_previous_metrics(profile_key, date_from, date_to, "Geral")
+    except Exception:
+        pass
+
+    # 4. Calcula score de saúde
+    health = _calculate_health_score(data, prev_metrics)
+    data["health_score"] = health["score"]
+    log.info("  ✓ Score de saúde: %d/100 (%s)", health["score"], health["grade"])
+
+    # 5. Gera análise estratégica com IA ANTES de salvar (para persistir junto)
     ai_analysis = None
     try:
         ai_analysis = generate_strategic_analysis(data, profile, "Geral")
@@ -520,16 +708,16 @@ def process_client(profile_key: str, profile: dict, date_from: str, date_to: str
         log.info("  ✓ Relatório HTML gerado")
     except Exception as exc:
         log.error("  ✗ Erro ao gerar HTML: %s", exc)
-        return ok   # métricas já foram salvas — retorna status delas
+        return ok, health  # métricas já foram salvas — retorna status delas
 
-    # 6. Envia por e-mail (com análise estratégica no corpo)
+    # 6. Envia por e-mail (com score de saúde e análise estratégica no corpo)
     period   = data.get("period_label", f"{date_from} → {date_to}")
     subject  = f"📊 Relatório Semanal — {name} · {period}"
     filename = f"relatorio_{profile_key}_{date_from}_{date_to}.html"
-    body     = _build_email_body(name, handle, data, period, ai_analysis=_ai_safe)
+    body     = _build_email_body(name, handle, data, period, ai_analysis=_ai_safe, health_score=health)
     send_email(subject, body, html_report, filename)
 
-    return ok
+    return ok, health
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -565,18 +753,32 @@ def main():
     date_from, date_to = _last_week()
     log.info("Período: %s → %s\n", date_from, date_to)
 
-    results = {"ok": [], "fail": []}
+    results = {"ok": [], "fail": [], "scores": []}
     for _, profile in profiles.items():
         client_key = profile.get("key")
         if not client_key:
             continue
-        success = process_client(client_key, profile, date_from, date_to)
+        success, health = process_client(client_key, profile, date_from, date_to)
         (results["ok"] if success else results["fail"]).append(profile.get("name", client_key))
+        if health:
+            results["scores"].append({
+                "name":   profile.get("name", client_key),
+                "handle": profile.get("handle", ""),
+                "score":  health["score"],
+                "grade":  health["grade"],
+                "color":  health["color"],
+                "delta":  health.get("delta"),
+            })
         log.info("")  # linha em branco entre clientes
 
     log.info("═══ Resumo ═══")
     log.info("✓ Sucesso: %d — %s", len(results["ok"]),   ", ".join(results["ok"])   or "—")
     log.info("✗ Falha:   %d — %s", len(results["fail"]), ", ".join(results["fail"]) or "—")
+
+    # E-mail de visão geral com o score de saúde de todos os clientes
+    if results["scores"]:
+        log.info("Enviando e-mail de resumo de saúde...")
+        _send_summary_email(results["scores"], date_from, date_to)
 
     if results["fail"] and not results["ok"]:
         sys.exit(1)

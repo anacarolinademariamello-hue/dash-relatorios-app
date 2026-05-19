@@ -19,6 +19,7 @@ from src.processor import process
 from src.html_gen import generate
 from src.ai_strategic import generate_strategic_analysis
 from src import supabase_db
+from src import health_score as hs
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -544,11 +545,16 @@ if gerar:
         # Análise estratégica gerada por IA (rápida, usa Haiku)
         ai_analysis = generate_strategic_analysis(data, profile, report_type)
 
+        # Score de saúde da conta
+        health = hs.calculate(data, prev)
+        data["health_score"] = health["score"]
+
         html = generate(
             profile, data, report_type,
             generated_at=datetime.now().strftime("%d/%m/%Y às %H:%M"),
             prev_data=prev,
             ai_analysis=ai_analysis,
+            health_score=health,
         )
 
     st.session_state.report_html   = html

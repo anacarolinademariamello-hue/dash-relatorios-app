@@ -125,10 +125,11 @@ def upsert_client(data: dict) -> bool:
                 **_headers(),
                 "Prefer": "resolution=merge-duplicates,return=minimal",
             },
+            params={"on_conflict": "key"},
             json=data,
             timeout=10,
         )
-        return resp.status_code in (200, 201)
+        return resp.status_code in (200, 201, 204)
     except Exception:
         return False
 
