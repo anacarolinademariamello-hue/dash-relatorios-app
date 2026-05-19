@@ -563,11 +563,25 @@ if gerar:
     data["sub_nicho"]    = profile.get("sub_nicho", "")
     data["publico_alvo"] = profile.get("publico_alvo", "")
 
-    # Salva histórico depois (não bloqueia o HTML) — inclui análise estratégica da IA
-    supabase_db.save_report_metrics(
-        profile["key"], date_from_str, date_to_str, report_type, data,
-        ai_strategic=ai_analysis,
-    )
+    # Converte ai_analysis para formato seguro (listas em vez de tuplas)
+    _ai_safe = None
+    if ai_analysis and isinstance(ai_analysis, dict):
+        try:
+            _ai_safe = {
+                "strengths":  [[e, t] for e, t in (ai_analysis.get("strengths") or [])],
+                "attentions": [[e, t] for e, t in (ai_analysis.get("attentions") or [])],
+            }
+        except Exception:
+            _ai_safe = None
+
+    # Salva histórico depois (não bloqueia o HTML) — falha aqui não derruba o relatório
+    try:
+        supabase_db.save_report_metrics(
+            profile["key"], date_from_str, date_to_str, report_type, data,
+            ai_strategic=_ai_safe,
+        )
+    except Exception:
+        pass  # relatório já foi gerado — save é não-crítico
 
 if not st.session_state.report_html:
     st.markdown("""

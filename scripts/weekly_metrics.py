@@ -337,8 +337,19 @@ def process_client(profile_key: str, profile: dict, date_from: str, date_to: str
     except Exception:
         log.warning("  ⚠ Análise estratégica indisponível — usando fallback")
 
+    # Converte ai_analysis para formato JSON seguro (listas em vez de tuplas)
+    _ai_safe = None
+    if ai_analysis and isinstance(ai_analysis, dict):
+        try:
+            _ai_safe = {
+                "strengths":  [[e, t] for e, t in (ai_analysis.get("strengths") or [])],
+                "attentions": [[e, t] for e, t in (ai_analysis.get("attentions") or [])],
+            }
+        except Exception:
+            _ai_safe = None
+
     # 4. Salva em report_history (com análise estratégica embutida — alimenta a IA)
-    ok = supabase_db.save_report_metrics(profile_key, date_from, date_to, "Geral", data, ai_strategic=ai_analysis)
+    ok = supabase_db.save_report_metrics(profile_key, date_from, date_to, "Geral", data, ai_strategic=_ai_safe)
     if ok:
         log.info("  ✓ Métricas salvas no Supabase")
     else:
