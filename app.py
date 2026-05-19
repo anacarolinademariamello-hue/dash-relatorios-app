@@ -48,8 +48,10 @@ def _fetch_all_data(profile_key: str, date_from: str, date_to: str, report_type:
         ("top_posts",    fetch_instagram_top_posts,(profile, date_from, date_to)),
     ]
     if report_type != "Só Orgânico":
-        tasks.append(("ads_rows",    fetch_meta_ads_daily,   (profile, date_from, date_to)))
-        tasks.append(("ads_totals",  fetch_meta_ads_totals,  (profile, date_from, date_to)))
+        tasks.append(("ads_rows",   fetch_meta_ads_daily,  (profile, date_from, date_to)))
+    # ads_totals sempre buscado: necessário para calcular alcance orgânico real
+    # mesmo no modo Só Orgânico (sem ads, retorna vazio e orgânico = total)
+    tasks.append(("ads_totals", fetch_meta_ads_totals, (profile, date_from, date_to)))
 
     defaults = {
         "ig_rows":      [],
