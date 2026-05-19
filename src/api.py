@@ -141,27 +141,33 @@ def fetch_instagram_daily(profile: dict, date_from: str, date_to: str) -> list:
         pass  # follower_count só disponível nos últimos 30 dias
 
     # ── Media-level engagement (likes, comments, saves, shares) ─────────────
+    # Segue paginação completa — contas ativas podem ter >200 posts no período
     try:
-        media_resp = _get(f"{GRAPH}/{ig_id}/media", {
+        media_url = f"{GRAPH}/{ig_id}/media"
+        media_params = {
             "fields":       "id,timestamp,like_count,comments_count,insights.metric(saved,shares)",
             "since":        date_from,
             "until":        until,
-            "limit":        200,
+            "limit":        100,
             "access_token": token,
-        })
-        for media in media_resp.get("data", []):
-            d = (media.get("timestamp") or "")[:10]
-            if not d:
-                continue
-            by_date.setdefault(d, {})
-            by_date[d]["likes"]    = by_date[d].get("likes", 0)    + int(media.get("like_count") or 0)
-            by_date[d]["comments"] = by_date[d].get("comments", 0) + int(media.get("comments_count") or 0)
-            for ins in (media.get("insights") or {}).get("data", []):
-                val = int((ins.get("values") or [{}])[0].get("value") or 0)
-                if ins["name"] == "saved":
-                    by_date[d]["saves"]  = by_date[d].get("saves", 0)  + val
-                elif ins["name"] == "shares":
-                    by_date[d]["shares"] = by_date[d].get("shares", 0) + val
+        }
+        while media_url:
+            media_resp = _get(media_url, media_params)
+            for media in media_resp.get("data", []):
+                d = (media.get("timestamp") or "")[:10]
+                if not d:
+                    continue
+                by_date.setdefault(d, {})
+                by_date[d]["likes"]    = by_date[d].get("likes", 0)    + int(media.get("like_count") or 0)
+                by_date[d]["comments"] = by_date[d].get("comments", 0) + int(media.get("comments_count") or 0)
+                for ins in (media.get("insights") or {}).get("data", []):
+                    val = int((ins.get("values") or [{}])[0].get("value") or 0)
+                    if ins["name"] == "saved":
+                        by_date[d]["saves"]  = by_date[d].get("saves", 0)  + val
+                    elif ins["name"] == "shares":
+                        by_date[d]["shares"] = by_date[d].get("shares", 0) + val
+            media_url    = media_resp.get("paging", {}).get("next")
+            media_params = {}
     except (PermissionError, ValueError):
         raise
     except Exception:
@@ -338,14 +344,15 @@ def fetch_instagram_top_posts(profile: dict, date_from: str, date_to: str) -> li
         resp = _get(f"{GRAPH}/{ig_id}/media", params)
         all_media = list(resp.get("data", []))
 
-        # Paginação: busca mais uma página se disponível (até 200 posts total)
+        # Paginação completa — segue até não haver mais páginas
         next_url = resp.get("paging", {}).get("next", "")
-        if next_url:
+        while next_url:
             try:
-                resp2 = _get(next_url, {})
-                all_media.extend(resp2.get("data", []))
+                resp_next = _get(next_url, {})
+                all_media.extend(resp_next.get("data", []))
+                next_url = resp_next.get("paging", {}).get("next", "")
             except Exception:
-                pass  # segunda página opcional
+                break  # página extra falhou — usa o que já tem
 
     except (PermissionError, ValueError):
         raise

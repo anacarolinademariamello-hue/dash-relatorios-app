@@ -163,13 +163,14 @@ def _kpis(d: dict, report_type: str) -> str:
             f'<div class="kpi-card"><span class="kpi-icon">💾</span><div class="kpi-val">{_br(d["total_saves"])}</div><div class="kpi-label">Salvamentos</div><span class="kpi-badge badge-gold">saves</span></div>',
             f'<div class="kpi-card"><span class="kpi-icon">🔁</span><div class="kpi-val">{_br(d["total_shares"])}</div><div class="kpi-label">Compartilhamentos</div></div>',
             f'<div class="kpi-card"><span class="kpi-icon">💬</span><div class="kpi-val">{_br(d["total_comments"])}</div><div class="kpi-label">Comentários</div></div>',
-            (
-                f'<div class="kpi-card"><span class="kpi-icon">📈</span><div class="kpi-val">+{_br(d["followers_gained"])}</div><div class="kpi-label">Seguidores Ganhos</div>'
-                f'<span class="kpi-badge badge-green">🌱 {_br(d["followers_organic_est"])} org · 💰 {_br(d["followers_paid_est"])} pago</span></div>'
-                if report_type != "Só Orgânico" else
-                f'<div class="kpi-card"><span class="kpi-icon">📈</span><div class="kpi-val">+{_br(d["followers_gained"])}</div><div class="kpi-label">Seguidores Ganhos</div>'
-                f'<span class="kpi-badge badge-blue">total todas as fontes*</span></div>'
-            ),
+            (lambda fg=d["followers_gained"]: (
+                f'<div class="kpi-card"><span class="kpi-icon">{"📈" if fg >= 0 else "📉"}</span>'
+                f'<div class="kpi-val">{"+" if fg >= 0 else ""}{_br(fg)}</div>'
+                f'<div class="kpi-label">Seguidores</div>'
+                + (f'<span class="kpi-badge badge-green">🌱 {_br(d["followers_organic_est"])} org · 💰 {_br(d["followers_paid_est"])} pago</span></div>'
+                   if report_type != "Só Orgânico" else
+                   f'<span class="kpi-badge badge-blue">total todas as fontes*</span></div>')
+            )(),
         ]
     if report_type != "Só Orgânico":
         cards += [
@@ -849,7 +850,12 @@ def _strategic(d: dict, report_type: str, profile: dict = None, ai_analysis: dic
 
         fg = d["followers_gained"]
         if fg > 0:
-            strengths.append(("📈", f"<strong>+{_br(fg)} seguidores</strong> conquistados no período ({_br(d['followers_organic_est'])} orgânicos, {_br(d['followers_paid_est'])} via anúncios)."))
+            if report_type == "Só Orgânico" or int(d.get("followers_paid_est", 0)) == 0:
+                strengths.append(("📈", f"<strong>+{_br(fg)} seguidores</strong> conquistados no período por crescimento orgânico."))
+            else:
+                strengths.append(("📈", f"<strong>+{_br(fg)} seguidores</strong> conquistados no período ({_br(d['followers_organic_est'])} orgânicos, {_br(d['followers_paid_est'])} via anúncios)."))
+        elif fg < 0:
+            attentions.append(("👤", f"Perda líquida de <strong>{_br(abs(fg))} seguidores</strong> no período — revisar estratégia de retenção e relevância do conteúdo."))
         else:
             attentions.append(("👤", "Nenhum crescimento de seguidores registrado no período — revisar estratégia de aquisição e chamadas para seguir o perfil."))
 
@@ -1140,9 +1146,21 @@ def _goals_section(profile: dict, data: dict, report_type: str) -> str:
     # Mapeamento goal_key → (label, valor_real, formato, menor_é_melhor)
     # Valores reais extraídos do data dict
     def _parse_num(s: str) -> float:
-        """Extrai número de string como 'R$5,00', '5%', '2.5'."""
+        """Extrai número de string como 'R$5,00', '5%', '2.5', '1,234.56'."""
         import re as _re
-        s = s.replace("R$", "").replace("%", "").replace(".", "").replace(",", ".").strip()
+        s = s.replace("R$", "").replace("%", "").strip()
+        # Detecta formato: se tem vírgula E ponto, o que vier por último é o decimal
+        if "," in s and "." in s:
+            if s.rfind(",") > s.rfind("."):
+                # Formato BR: 1.234,56 → remove ponto, troca vírgula por ponto
+                s = s.replace(".", "").replace(",", ".")
+            else:
+                # Formato US: 1,234.56 → só remove vírgula
+                s = s.replace(",", "")
+        elif "," in s:
+            # Vírgula como decimal (BR): 2,5 → 2.5
+            s = s.replace(",", ".")
+        # else: ponto como decimal (US/padrão): 2.5 → mantém
         m = _re.search(r"[\d.]+", s)
         return float(m.group()) if m else 0.0
 
@@ -1256,27 +1274,41 @@ def _comparativo_section(current: dict, previous: dict) -> str:
     if not previous:
         return ""
 
-    def _delta(key, label, prefix="", suffix="", decimals=0):
+    def _delta(key, label, prefix="", suffix="", decimals=0, pp_mode=False):
         c = float(current.get(key, 0))
         p = float(previous.get(key, 0))
         if p == 0:
             return ""
-        pct    = (c - p) / p * 100
-        arrow  = "↑" if pct >= 0 else "↓"
-        color  = "#16a34a" if pct >= 0 else "#dc2626"
-        bg     = "#f0fdf4" if pct >= 0 else "#fef2f2"
-        border = "#bbf7d0" if pct >= 0 else "#fecaca"
-        if decimals:
-            val_str = f"{prefix}{c:,.{decimals}f}{suffix}".replace(",", "X").replace(".", ",").replace("X", ".")
+        if pp_mode:
+            # Diferença absoluta em pontos percentuais (p.p.), não variação relativa
+            diff   = c - p
+            arrow  = "↑" if diff >= 0 else "↓"
+            color  = "#16a34a" if diff >= 0 else "#dc2626"
+            bg     = "#f0fdf4" if diff >= 0 else "#fef2f2"
+            border = "#bbf7d0" if diff >= 0 else "#fecaca"
+            sign   = "+" if diff >= 0 else ""
+            change_str = f"{sign}{abs(diff):.2f} p.p."
         else:
-            val_str = f"{prefix}{int(round(c)):,}{suffix}".replace(",", ".")
+            pct    = (c - p) / p * 100
+            diff   = pct
+            arrow  = "↑" if pct >= 0 else "↓"
+            color  = "#16a34a" if pct >= 0 else "#dc2626"
+            bg     = "#f0fdf4" if pct >= 0 else "#fef2f2"
+            border = "#bbf7d0" if pct >= 0 else "#fecaca"
+            change_str = f"{arrow} {abs(pct):.1f}%"
+        # Quando prefix="+" e o valor é negativo, o sinal negativo já está no número
+        effective_prefix = prefix if (prefix != "+" or c >= 0) else ""
+        if decimals:
+            val_str = f"{effective_prefix}{c:,.{decimals}f}{suffix}".replace(",", "X").replace(".", ",").replace("X", ".")
+        else:
+            val_str = f"{effective_prefix}{int(round(c)):,}{suffix}".replace(",", ".")
         return (
             f'<div style="display:inline-flex;align-items:center;gap:8px;'
             f'background:{bg};border:1px solid {border};border-radius:10px;'
             f'padding:8px 14px;font-size:.85rem;white-space:nowrap;">'
             f'<span style="color:#374151;">{label}</span>'
             f'<strong style="color:#111;">{val_str}</strong>'
-            f'<span style="color:{color};font-weight:700;">{arrow} {abs(pct):.1f}%</span>'
+            f'<span style="color:{color};font-weight:700;">{change_str}</span>'
             f'</div>'
         )
 
@@ -1284,7 +1316,7 @@ def _comparativo_section(current: dict, previous: dict) -> str:
         _delta("total_reach",        "📡 Alcance"),
         _delta("total_organic",      "🌱 Orgânico"),
         _delta("total_interactions", "💬 Interações"),
-        _delta("org_eng_rate",       "📊 Engajamento", suffix="%", decimals=2),
+        _delta("org_eng_rate",       "📊 Engajamento", suffix="%", decimals=2, pp_mode=True),
         _delta("total_saves",        "💾 Saves"),
         _delta("followers_gained",   "📈 Seguidores", prefix="+"),
         _delta("total_spend",        "💰 Gasto Ads", prefix="R$", decimals=2),

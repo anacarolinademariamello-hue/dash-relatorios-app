@@ -149,7 +149,7 @@ def _best_hour_to_post(top_posts: list) -> list:
         # Timestamp ISO: "2024-03-15T14:30:00+0000"
         if "T" in ts and len(ts) >= 13:
             try:
-                hour = int(ts[11:13])
+                hour = (int(ts[11:13]) - 3) % 24  # UTC → BRT (UTC-3)
                 hour_stats[hour]["count"] += 1
                 hour_stats[hour]["total"] += post.get("total_interactions", 0)
             except (ValueError, IndexError):
@@ -273,7 +273,9 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
 
     organic_pct  = round(total_organic / total_reach * 100, 1)        if total_reach        else 0
     paid_pct     = round(100 - organic_pct, 1)
-    org_eng_rate = round(total_interactions / total_organic * 100, 2)  if total_organic      else 0
+    # Engajamento orgânico calculado sobre seguidores (padrão do setor),
+    # não sobre alcance orgânico — evita inflação por sobreposição de audiências.
+    org_eng_rate = round(total_interactions / followers * 100, 2) if followers else 0
     avg_cpm      = round(total_spend / total_impressions * 1000, 2)    if total_impressions  else 0
     avg_cpc      = round(total_spend / total_clicks, 2)                if total_clicks       else 0
 
