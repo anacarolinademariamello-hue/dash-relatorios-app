@@ -22,6 +22,7 @@ import os
 import sys
 import logging
 import smtplib
+import requests as _requests
 from datetime import date, timedelta, datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -68,6 +69,104 @@ def _email_configured() -> bool:
         and os.environ.get("GMAIL_APP_PASSWORD")
         and os.environ.get("EMAIL_TO")
     )
+
+
+# ── Verificação do token Meta ─────────────────────────────────────────────────
+
+def _check_token_expiry() -> dict:
+    """
+    Consulta o endpoint debug_token da Meta para saber quantos dias restam.
+    Retorna {"days_left": int, "expires_at": str, "is_valid": bool}.
+    Se não conseguir verificar, retorna {"days_left": None}.
+    """
+    token = os.environ.get("META_ACCESS_TOKEN", "")
+    if not token:
+        return {"days_left": None}
+    try:
+        resp = _requests.get(
+            "https://graph.facebook.com/debug_token",
+            params={"input_token": token, "access_token": token},
+            timeout=10,
+        )
+        data = resp.json().get("data", {})
+        if not data.get("is_valid"):
+            return {"days_left": 0, "expires_at": "—", "is_valid": False}
+        expires_at = data.get("expires_at", 0)
+        if not expires_at:
+            # Token sem expiração (raro — app token)
+            return {"days_left": 999, "expires_at": "Sem expiração", "is_valid": True}
+        exp_date   = datetime.utcfromtimestamp(expires_at).date()
+        days_left  = (exp_date - date.today()).days
+        return {
+            "days_left":  days_left,
+            "expires_at": exp_date.strftime("%d/%m/%Y"),
+            "is_valid":   True,
+        }
+    except Exception as exc:
+        log.warning("Não foi possível verificar o token Meta: %s", exc)
+        return {"days_left": None}
+
+
+def _send_token_alert(days_left: int, expires_at: str) -> None:
+    """Envia e-mail de alerta quando o token Meta está prestes a expirar."""
+    gmail_user = os.environ.get("GMAIL_USER", "")
+    gmail_pass = os.environ.get("GMAIL_APP_PASSWORD", "")
+    recipients = [r.strip() for r in os.environ.get("EMAIL_TO", "").split(",") if r.strip()]
+    if not (gmail_user and gmail_pass and recipients):
+        return
+
+    urgency_color = "#dc2626" if days_left <= 3 else "#f59e0b"
+    urgency_label = "🔴 URGENTE" if days_left <= 3 else "⚠️ Atenção"
+    urgency_msg   = (
+        "O token <strong>já expirou ou expira hoje</strong>. Os relatórios desta semana <strong>não foram gerados</strong>."
+        if days_left <= 0 else
+        f"O token expira em <strong>{days_left} dia{'s' if days_left != 1 else ''}</strong> ({expires_at}). "
+        f"Renove antes de {expires_at} para não interromper os relatórios."
+    )
+
+    html = f"""<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f0f3f8;font-family:'Segoe UI',system-ui,sans-serif;">
+<div style="max-width:560px;margin:0 auto;padding:24px 16px;">
+  <div style="background:linear-gradient(135deg,#7f1d1d,#dc2626);border-radius:16px;padding:32px;color:#fff;text-align:center;margin-bottom:20px;">
+    <div style="font-size:2.5rem;margin-bottom:8px;">🔑</div>
+    <h1 style="margin:0 0 6px;font-size:1.4rem;font-weight:700;">{urgency_label} — Token Meta expirando</h1>
+    <div style="opacity:.85;font-size:.9rem;">Dash Digital · Automação Semanal</div>
+  </div>
+  <div style="background:#fff;border:1px solid #fca5a5;border-radius:12px;padding:20px 24px;margin-bottom:16px;">
+    <p style="margin:0 0 12px;font-size:.95rem;color:#374151;">{urgency_msg}</p>
+    <hr style="border:none;border-top:1px solid #f3f4f6;margin:16px 0;">
+    <p style="margin:0;font-size:.85rem;color:#6b7280;"><strong>Como renovar:</strong></p>
+    <ol style="margin:8px 0 0;padding-left:20px;font-size:.85rem;color:#374151;line-height:1.8;">
+      <li>Acesse <a href="https://developers.facebook.com/tools/explorer/" style="color:#003f7c;">Meta Graph API Explorer</a></li>
+      <li>Gere um novo User Access Token com as permissões necessárias</li>
+      <li>Troque pelo token longo: <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;">fb_exchange_token</code></li>
+      <li>Atualize <code style="background:#f3f4f6;padding:2px 6px;border-radius:4px;">META_ACCESS_TOKEN</code> nos Secrets do GitHub e do Streamlit Cloud</li>
+    </ol>
+  </div>
+  <div style="text-align:center;font-size:.72rem;color:#9ca3af;margin-top:16px;">
+    Alerta gerado automaticamente · Dash Digital · @dashdgt
+  </div>
+</div>
+</body>
+</html>"""
+
+    subject = f"🔑 {'TOKEN EXPIRADO' if days_left <= 0 else f'Token Meta expira em {days_left} dia(s)'} — Dash Digital"
+    msg = MIMEMultipart("mixed")
+    msg["Subject"] = subject
+    msg["From"]    = f"Dash Digital Relatórios <{gmail_user}>"
+    msg["To"]      = ", ".join(recipients)
+    msg.attach(MIMEText(html, "html", "utf-8"))
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
+            smtp.ehlo(); smtp.starttls()
+            smtp.login(gmail_user, gmail_pass)
+            smtp.sendmail(gmail_user, recipients, msg.as_bytes())
+        log.info("✉ Alerta de token enviado para: %s", ", ".join(recipients))
+    except Exception as exc:
+        log.error("Falha ao enviar alerta de token: %s", exc)
 
 
 # ── Período ───────────────────────────────────────────────────────────────────
@@ -123,8 +222,61 @@ def _br(v, decimals=0):
         return str(v)
 
 
-def _build_email_body(name: str, handle: str, data: dict, period: str) -> str:
-    """Monta o corpo HTML do e-mail com resumo das métricas."""
+def _build_ai_section(ai_analysis: dict = None) -> str:
+    """Monta o bloco HTML de análise estratégica para o e-mail."""
+    if not ai_analysis or not isinstance(ai_analysis, dict):
+        return ""
+
+    import re as _re
+
+    def _strip_html(text: str) -> str:
+        return _re.sub(r"<[^>]+>", "", text or "")
+
+    strengths  = ai_analysis.get("strengths", [])
+    attentions = ai_analysis.get("attentions", [])
+    if not strengths and not attentions:
+        return ""
+
+    def _items_html(items: list, color: str, bg: str) -> str:
+        rows = ""
+        for item in items:
+            emoji = item[0] if isinstance(item, (list, tuple)) else item.get("emoji", "•")
+            text  = item[1] if isinstance(item, (list, tuple)) else item.get("text", "")
+            text  = _strip_html(str(text))
+            rows += (
+                f'<div style="display:flex;gap:10px;padding:10px 0;'
+                f'border-bottom:1px solid {bg};">'
+                f'<span style="font-size:1.1rem;flex-shrink:0;">{emoji}</span>'
+                f'<span style="font-size:.85rem;color:#374151;line-height:1.6;">{text}</span>'
+                f'</div>'
+            )
+        return rows
+
+    strengths_html  = _items_html(strengths,  "#16a34a", "#f0fdf4")
+    attentions_html = _items_html(attentions, "#d97706", "#fffbeb")
+
+    return f"""
+  <div style="margin-top:24px;">
+    <h3 style="color:#003f7c;font-size:1rem;margin:0 0 12px;">🧭 Análise Estratégica da Semana</h3>
+
+    <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:12px;padding:16px 20px;margin-bottom:12px;">
+      <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#16a34a;margin-bottom:8px;">
+        ✅ Pontos Fortes
+      </div>
+      {strengths_html}
+    </div>
+
+    <div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:12px;padding:16px 20px;">
+      <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#d97706;margin-bottom:8px;">
+        ⚠️ Pontos de Atenção
+      </div>
+      {attentions_html}
+    </div>
+  </div>"""
+
+
+def _build_email_body(name: str, handle: str, data: dict, period: str, ai_analysis: dict = None) -> str:
+    """Monta o corpo HTML do e-mail com resumo das métricas e análise estratégica."""
     reach       = _br(data.get("total_reach", 0))
     organic     = _br(data.get("total_organic", 0))
     org_pct     = data.get("organic_pct", 0)
@@ -237,9 +389,11 @@ def _build_email_body(name: str, handle: str, data: dict, period: str) -> str:
 
   {campaigns_section}
 
+  {_build_ai_section(ai_analysis)}
+
   <!-- Anexo -->
   <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:16px 20px;margin-top:24px;font-size:.85rem;color:#374151;">
-    📎 O relatório completo com gráficos e análise estratégica está anexado a este e-mail como arquivo HTML.<br>
+    📎 O relatório completo com gráficos está anexado a este e-mail como arquivo HTML.<br>
     <span style="color:#9ca3af;font-size:.78rem;">Abra o arquivo no navegador para visualizar. Para salvar como PDF, use Ctrl+P → Salvar como PDF.</span>
   </div>
 
@@ -368,11 +522,11 @@ def process_client(profile_key: str, profile: dict, date_from: str, date_to: str
         log.error("  ✗ Erro ao gerar HTML: %s", exc)
         return ok   # métricas já foram salvas — retorna status delas
 
-    # 6. Envia por e-mail
+    # 6. Envia por e-mail (com análise estratégica no corpo)
     period   = data.get("period_label", f"{date_from} → {date_to}")
     subject  = f"📊 Relatório Semanal — {name} · {period}"
     filename = f"relatorio_{profile_key}_{date_from}_{date_to}.html"
-    body     = _build_email_body(name, handle, data, period)
+    body     = _build_email_body(name, handle, data, period, ai_analysis=_ai_safe)
     send_email(subject, body, html_report, filename)
 
     return ok
@@ -385,6 +539,21 @@ def main():
 
     if not _check_env():
         sys.exit(1)
+
+    # ── Verificação do token Meta — alerta se < 10 dias ───────────────────────
+    token_info = _check_token_expiry()
+    days_left  = token_info.get("days_left")
+    if days_left is None:
+        log.warning("Não foi possível verificar validade do token Meta.")
+    elif days_left <= 0:
+        log.error("🔴 Token Meta EXPIRADO — relatórios não serão gerados.")
+        _send_token_alert(days_left, token_info.get("expires_at", "—"))
+        sys.exit(1)
+    elif days_left <= 10:
+        log.warning("⚠️  Token Meta expira em %d dia(s) (%s) — enviando alerta.", days_left, token_info.get("expires_at"))
+        _send_token_alert(days_left, token_info.get("expires_at", "—"))
+    else:
+        log.info("🔑 Token Meta válido — %d dias restantes (%s).", days_left, token_info.get("expires_at"))
 
     profiles = supabase_db.get_clients()
     if not profiles:
