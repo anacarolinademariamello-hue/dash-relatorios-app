@@ -154,9 +154,18 @@ def _header(profile: dict, d: dict) -> str:
 def _kpis(d: dict, report_type: str) -> str:
     cards = []
     if report_type != "Só Pago":
+        # No modo "Só Orgânico" não há dados de anúncio, então total = orgânico.
+        # Mostramos apenas um card de alcance para não confundir com dois números iguais.
+        if report_type == "Só Orgânico":
+            cards += [
+                f'<div class="kpi-card"><span class="kpi-icon">🌱</span><div class="kpi-val">{_br(d["total_organic"])}</div><div class="kpi-label">Alcance Orgânico</div><span class="kpi-badge badge-green">100% orgânico</span></div>',
+            ]
+        else:
+            cards += [
+                f'<div class="kpi-card"><span class="kpi-icon">📡</span><div class="kpi-val">{_br(d["total_reach"])}</div><div class="kpi-label">Alcance Total</div><span class="kpi-badge badge-blue">org + pago</span></div>',
+                f'<div class="kpi-card"><span class="kpi-icon">🌱</span><div class="kpi-val">{_br(d["total_organic"])}</div><div class="kpi-label">Alcance Orgânico</div><span class="kpi-badge badge-orange">{d["organic_pct"]}% do total</span></div>',
+            ]
         cards += [
-            f'<div class="kpi-card"><span class="kpi-icon">📡</span><div class="kpi-val">{_br(d["total_reach"])}</div><div class="kpi-label">Alcance Total</div><span class="kpi-badge badge-blue">org + pago</span></div>',
-            f'<div class="kpi-card"><span class="kpi-icon">🌱</span><div class="kpi-val">{_br(d["total_organic"])}</div><div class="kpi-label">Alcance Orgânico</div><span class="kpi-badge badge-orange">{d["organic_pct"]}% do total</span></div>',
             f'<div class="kpi-card"><span class="kpi-icon">💬</span><div class="kpi-val">{_br(d["total_interactions"])}</div><div class="kpi-label">Interações</div><span class="kpi-badge badge-blue">likes+com+saves+shares</span></div>',
             f'<div class="kpi-card"><span class="kpi-icon">📊</span><div class="kpi-val">{_br(d["org_eng_rate"], 2)}%</div><div class="kpi-label">Eng. Orgânico</div><span class="kpi-badge badge-green">benchmark 3–5%</span></div>',
             f'<div class="kpi-card"><span class="kpi-icon">❤️</span><div class="kpi-val">{_br(d["total_likes"])}</div><div class="kpi-label">Curtidas</div></div>',
