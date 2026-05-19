@@ -14,6 +14,7 @@ from src.api import (
     fetch_instagram_audience,
     fetch_instagram_top_posts,
     fetch_meta_ads_daily,
+    fetch_meta_ads_totals,
 )
 from src.processor import process
 from src.html_gen import generate
@@ -47,7 +48,8 @@ def _fetch_all_data(profile_key: str, date_from: str, date_to: str, report_type:
         ("top_posts",    fetch_instagram_top_posts,(profile, date_from, date_to)),
     ]
     if report_type != "Só Orgânico":
-        tasks.append(("ads_rows", fetch_meta_ads_daily, (profile, date_from, date_to)))
+        tasks.append(("ads_rows",    fetch_meta_ads_daily,   (profile, date_from, date_to)))
+        tasks.append(("ads_totals",  fetch_meta_ads_totals,  (profile, date_from, date_to)))
 
     defaults = {
         "ig_rows":      [],
@@ -55,6 +57,7 @@ def _fetch_all_data(profile_key: str, date_from: str, date_to: str, report_type:
         "audience":     {"gender_age": {}, "countries": {}},
         "top_posts":    [],
         "ads_rows":     [],
+        "ads_totals":   {},   # totais do período deduplicados (nível conta)
         "ads_error":    "",   # mensagem de erro de ads, se houver
     }
     results = dict(defaults)
@@ -528,6 +531,7 @@ if gerar:
     audience     = fetched["audience"]
     top_posts    = fetched["top_posts"]
     ads_rows     = fetched["ads_rows"]
+    ads_totals   = fetched.get("ads_totals", {})
 
     ads_error = fetched.get("ads_error", "")
     if report_type != "Só Orgânico" and not ads_rows:
@@ -552,7 +556,7 @@ if gerar:
         st.info("ℹ️ Foram encontrados mais de 100 posts — apenas os 100 mais recentes são analisados no ranking.")
 
     with st.spinner("🎨 Gerando relatório…"):
-        data = process(ig_rows, ads_rows, profile_info, audience, top_posts, date_from_str, date_to_str)
+        data = process(ig_rows, ads_rows, profile_info, audience, top_posts, date_from_str, date_to_str, ads_totals=ads_totals)
 
         # Busca comparativo ANTES de gerar o HTML para incluir no relatório
         prev = supabase_db.get_previous_metrics(

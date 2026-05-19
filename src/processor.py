@@ -173,7 +173,8 @@ def _best_hour_to_post(top_posts: list) -> list:
 
 def process(ig_rows: list, ads_rows: list, profile_info: dict,
             audience_data: dict, top_posts: list,
-            date_from: str, date_to: str) -> dict:
+            date_from: str, date_to: str,
+            ads_totals: dict = None) -> dict:
     """
     Combine Instagram + Meta Ads raw rows into clean arrays ready for the HTML generator.
     """
@@ -260,8 +261,6 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
 
     # ── Totals ───────────────────────────────────────────────────────────────
     total_reach        = sum(daily_reach)
-    total_organic      = sum(daily_organic_reach)
-    total_paid_reach   = sum(daily_paid_reach)
     total_interactions = sum(daily_interactions)
     total_likes        = sum(daily_likes)
     total_comments     = sum(daily_comments)
@@ -271,7 +270,25 @@ def process(ig_rows: list, ads_rows: list, profile_info: dict,
     total_impressions  = sum(c["impressions"] for c in campaigns)
     total_clicks       = sum(c["clicks"]      for c in campaigns)
 
-    organic_pct  = round(total_organic / total_reach * 100, 1)        if total_reach        else 0
+    # ── Alcance pago: usa total do período deduplicado (nível conta) se disponível.
+    # A soma de alcances diários por campanha dupla-conta pessoas vistas em múltiplos
+    # dias → o valor fica o dobro do que o Meta Ads Manager exibe.
+    # fetch_meta_ads_totals() retorna o alcance único real do período.
+    _t = ads_totals or {}
+    total_paid_reach = int(_t.get("reach") or 0) or sum(daily_paid_reach)
+
+    # Alcance orgânico = Instagram total − alcance pago único do período
+    total_organic = max(0, total_reach - total_paid_reach)
+
+    # Recalcula daily_organic_reach para os gráficos usando proporção
+    # (os diários continuam sendo estimativas, mas o total agora bate com Ads Manager)
+    _daily_paid_sum = sum(daily_paid_reach) or 1
+    daily_organic_reach = [
+        max(0, daily_reach[i] - int(daily_paid_reach[i] * total_paid_reach / _daily_paid_sum))
+        for i in range(len(days))
+    ]
+
+    organic_pct  = round(total_organic / total_reach * 100, 1) if total_reach else 0
     paid_pct     = round(100 - organic_pct, 1)
     avg_cpm      = round(total_spend / total_impressions * 1000, 2)    if total_impressions  else 0
     avg_cpc      = round(total_spend / total_clicks, 2)                if total_clicks       else 0

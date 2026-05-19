@@ -435,3 +435,35 @@ def fetch_meta_ads_daily(profile: dict, date_from: str, date_to: str) -> list:
         params = {}
 
     return rows
+
+
+def fetch_meta_ads_totals(profile: dict, date_from: str, date_to: str) -> dict:
+    """
+    Alcance e totais do período completo (deduplicados) via Marketing API.
+    Equivale exatamente ao que o Meta Ads Manager exibe para o período selecionado.
+    Usa level=account sem time_increment — sem dupla contagem entre dias ou campanhas.
+    """
+    act_id = profile["facebook_account_id"]
+    token  = _token()
+
+    try:
+        resp = _get(f"{GRAPH}/act_{act_id}/insights", {
+            "fields":     "reach,impressions,spend,clicks",
+            "level":      "account",
+            "time_range": json.dumps({"since": date_from, "until": date_to}),
+            "access_token": token,
+        })
+        data = resp.get("data", [])
+        if not data:
+            return {}
+        item = data[0]
+        return {
+            "reach":       int(item.get("reach") or 0),
+            "impressions": int(item.get("impressions") or 0),
+            "spend":       float(item.get("spend") or 0),
+            "clicks":      int(item.get("clicks") or 0),
+        }
+    except (PermissionError, ValueError):
+        raise
+    except Exception:
+        return {}  # falha silenciosa — usa totais calculados como fallback
