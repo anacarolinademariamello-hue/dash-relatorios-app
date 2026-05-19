@@ -14,6 +14,77 @@ Critérios:
 from __future__ import annotations
 
 
+def render_card_html(health: dict) -> str:
+    """
+    Gera o HTML do card de Score de Saúde para injetar no relatório.
+    Pode ser chamado de app.py sem depender de html_gen.py.
+    """
+    if not health:
+        return ""
+
+    score     = health["score"]
+    grade     = health["grade"]
+    color     = health["color"]
+    delta     = health.get("delta")
+    breakdown = health.get("breakdown", {})
+
+    delta_html = ""
+    if delta is not None:
+        d_sign  = "+" if delta >= 0 else ""
+        d_color = "#16a34a" if delta >= 0 else "#dc2626"
+        d_arrow = "&#9650;" if delta >= 0 else "&#9660;"
+        delta_html = (
+            f'<span style="font-size:.85rem;font-weight:600;color:{d_color};margin-left:12px;">'
+            f'{d_arrow} {d_sign}{delta} pts vs per&#237;odo anterior</span>'
+        )
+
+    emoji = "&#129001;" if score >= 70 else "&#128993;" if score >= 55 else "&#129000;" if score >= 35 else "&#128308;"
+
+    label_map = [
+        ("frequencia",   "Frequ&#234;ncia de postagem",          20),
+        ("engajamento",  "Engajamento org&#226;nico",            25),
+        ("crescimento",  "Crescimento de seguidores",            20),
+        ("ctr",          "CTR de campanhas",                     20),
+        ("consistencia", "Consist&#234;ncia vs per&#237;odo ant.", 15),
+    ]
+    bars_html = ""
+    for key, label, max_val in label_map:
+        val       = breakdown.get(key, 0)
+        pct       = int(val / max_val * 100) if max_val else 0
+        bar_color = "#16a34a" if pct >= 70 else "#d97706" if pct >= 40 else "#dc2626"
+        bars_html += (
+            f'<div style="margin-bottom:12px;">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">'
+            f'<span style="font-size:.82rem;color:#6b7280;">{label}</span>'
+            f'<span style="font-size:.82rem;font-weight:700;color:#374151;">{val}/{max_val}</span>'
+            f'</div>'
+            f'<div style="background:#f3f4f6;border-radius:6px;height:8px;">'
+            f'<div style="background:{bar_color};width:{pct}%;height:8px;border-radius:6px;"></div>'
+            f'</div></div>'
+        )
+
+    return (
+        '<section class="section">'
+        '<h2 class="section-title">&#127973; Score de Sa&#250;de da Conta</h2>'
+        f'<div style="background:#fff;border:2px solid {color};border-radius:16px;padding:28px 32px;">'
+        f'<div style="display:flex;align-items:center;gap:24px;margin-bottom:24px;flex-wrap:wrap;">'
+        f'<div style="font-size:5rem;line-height:1;">{emoji}</div>'
+        f'<div>'
+        f'<div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#9ca3af;margin-bottom:4px;">Score de Sa&#250;de</div>'
+        f'<div style="display:flex;align-items:baseline;gap:4px;">'
+        f'<span style="font-size:4rem;font-weight:800;color:{color};line-height:1;">{score}</span>'
+        f'<span style="font-size:1.4rem;color:#9ca3af;">/100</span>'
+        f'{delta_html}'
+        f'</div>'
+        f'<div style="font-size:1.2rem;font-weight:700;color:{color};margin-top:4px;">{grade}</div>'
+        f'</div></div>'
+        f'<div style="max-width:600px;">{bars_html}</div>'
+        f'<div style="margin-top:16px;padding:12px 16px;background:#f8fafc;border-radius:10px;font-size:.8rem;color:#6b7280;">'
+        f'&#128161; Score calculado com base no per&#237;odo selecionado. CTR &#233; neutro (10/20) quando n&#227;o h&#225; tr&#225;fego pago.'
+        f'</div></div></section>'
+    )
+
+
 def calculate(data: dict, prev_metrics: dict | None = None) -> dict:
     """
     Calcula o score de saúde com base nos dados processados do período.

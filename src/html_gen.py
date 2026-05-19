@@ -1294,7 +1294,7 @@ def _comparativo_section(current: dict, previous: dict) -> str:
     )
 
 
-def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at: str = "", prev_data: dict = None, ai_analysis: dict = None, health_score: dict = None) -> str:
+def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at: str = "", prev_data: dict = None, ai_analysis: dict = None) -> str:
     import time
     uid = str(int(time.time() * 1000))[-6:]
     c   = profile["colors"]
@@ -1308,9 +1308,6 @@ def generate(profile: dict, data: dict, report_type: str = "Geral", generated_at
         "</head><body>",
         _header(profile, data),
         "<div class='container'>",
-
-        # 0. Score de saúde (quando disponível)
-        _health_score_card(health_score),
 
         # 1. Métricas do período
         "<section class='section'>",

@@ -550,25 +550,23 @@ if gerar:
         try:
             health = hs.calculate(data, prev)
             data["health_score"] = health["score"]
-        except Exception as _health_err:
-            st.warning(f"[debug] health_score error: {_health_err}")
+        except Exception:
+            pass
 
-        try:
-            html = generate(
-                profile, data, report_type,
-                generated_at=datetime.now().strftime("%d/%m/%Y às %H:%M"),
-                prev_data=prev,
-                ai_analysis=ai_analysis,
-                health_score=health,
-            )
-        except TypeError as _gen_err:
-            st.warning(f"[debug] generate() TypeError: {_gen_err}")
-            html = generate(
-                profile, data, report_type,
-                generated_at=datetime.now().strftime("%d/%m/%Y às %H:%M"),
-                prev_data=prev,
-                ai_analysis=ai_analysis,
-            )
+        html = generate(
+            profile, data, report_type,
+            generated_at=datetime.now().strftime("%d/%m/%Y às %H:%M"),
+            prev_data=prev,
+            ai_analysis=ai_analysis,
+        )
+
+        # Injeta o card de score diretamente no HTML gerado
+        if health:
+            try:
+                score_card = hs.render_card_html(health)
+                html = html.replace("<div class='container'>", f"<div class='container'>{score_card}", 1)
+            except Exception:
+                pass
 
     st.session_state.report_html   = html
     st.session_state.report_data   = data
