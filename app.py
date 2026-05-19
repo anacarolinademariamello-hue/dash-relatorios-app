@@ -50,11 +50,12 @@ def _fetch_all_data(profile_key: str, date_from: str, date_to: str, report_type:
         tasks.append(("ads_rows", fetch_meta_ads_daily, (profile, date_from, date_to)))
 
     defaults = {
-        "ig_rows":     [],
-        "profile_info":{},
-        "audience":    {"gender_age": {}, "countries": {}},
-        "top_posts":   [],
-        "ads_rows":    [],
+        "ig_rows":      [],
+        "profile_info": {},
+        "audience":     {"gender_age": {}, "countries": {}},
+        "top_posts":    [],
+        "ads_rows":     [],
+        "ads_error":    "",   # mensagem de erro de ads, se houver
     }
     results = dict(defaults)
 
@@ -69,10 +70,12 @@ def _fetch_all_data(profile_key: str, date_from: str, date_to: str, report_type:
                 results[key] = future.result()
             except (PermissionError, ValueError):
                 raise  # erros críticos de auth/config — propagar sempre
-            except Exception:
+            except Exception as e:
                 if key in ("ig_rows", "profile_info"):
                     raise  # dados principais — propagar
-                results[key] = defaults[key]  # não-crítico — usa padrão
+                results[key] = defaults[key]  # não-crítico — usa padrão vazio
+                if key == "ads_rows":
+                    results["ads_error"] = str(e)  # preserva mensagem para exibir
 
     return results
 
@@ -494,7 +497,8 @@ if gerar:
     date_from_str = date_from.isoformat()
     date_to_str   = date_to.isoformat()
 
-    # ── Busca paralela com cache 30 min ──────────────────────────────────────
+    # ── Busca paralela (sempre limpa cache para garantir dados frescos) ──────
+    _fetch_all_data.clear()
     with st.spinner(f"⏳ Buscando dados de {profile['handle']} via Meta Graph API…"):
         try:
             fetched = _fetch_all_data(profile["key"], date_from_str, date_to_str, report_type, profile)
@@ -524,6 +528,19 @@ if gerar:
     audience     = fetched["audience"]
     top_posts    = fetched["top_posts"]
     ads_rows     = fetched["ads_rows"]
+
+    ads_error = fetched.get("ads_error", "")
+    if report_type != "Só Orgânico" and not ads_rows:
+        detail = f"\n\n**Detalhe técnico:** `{ads_error}`" if ads_error else ""
+        st.error(
+            "❌ **Nenhum dado de anúncios retornado pela Meta Ads API.**\n\n"
+            "Possíveis causas:\n"
+            "- Token sem permissão `ads_read` para esta conta de anúncios\n"
+            "- ID da conta de anúncios incorreto no perfil\n"
+            "- A conta não teve campanhas ativas no período selecionado\n\n"
+            "O relatório foi gerado **apenas com dados orgânicos**. "
+            f"Os campos de alcance pago e gasto aparecem como zero.{detail}"
+        )
 
     if not ig_rows:
         st.warning(
