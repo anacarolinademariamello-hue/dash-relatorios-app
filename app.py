@@ -568,6 +568,24 @@ if gerar:
             except Exception:
                 pass
 
+        # Correção de exibição para "Só Orgânico": remove o card "Alcance Total (org + pago)"
+        # que aparece duplicado com o mesmo valor do "Alcance Orgânico".
+        # (Defesa contra cache do Streamlit Cloud que pode servir versão antiga do html_gen.py)
+        if report_type == "Só Orgânico":
+            import re as _re
+            html = _re.sub(
+                r'<div class="kpi-card"><span class="kpi-icon">📡</span>.*?org \+ pago</span></div>',
+                '',
+                html,
+                flags=_re.DOTALL,
+            )
+            html = _re.sub(
+                r'<span class="kpi-badge badge-orange">[\d.,]+% do total</span>',
+                '<span class="kpi-badge badge-green">100% orgânico</span>',
+                html,
+                count=1,
+            )
+
     st.session_state.report_html   = html
     st.session_state.report_data   = data
     st.session_state.report_label  = f"✅ Relatório gerado — {profile['handle']} · {data['period_label']} · {report_type}"
