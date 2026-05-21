@@ -10,7 +10,7 @@ Variáveis de ambiente necessárias (GitHub Secrets):
   SUPABASE_URL
   SUPABASE_SERVICE_KEY
   RESEND_API_KEY
-  REPORT_EMAIL           (destinatário dos e-mails de tráfego)
+  EMAIL_TO               (destinatário dos e-mails de tráfego)
 """
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from src.profiles  import PROFILES
 
 # ── Configuração ──────────────────────────────────────────────────────────────
 
-REPORT_EMAIL = os.environ.get("REPORT_EMAIL", "")
+REPORT_EMAIL = os.environ.get("EMAIL_TO", "")
 RESEND_KEY   = os.environ.get("RESEND_API_KEY", "")
 FROM_EMAIL   = "relatorios@dash.digital"   # domínio verificado no Resend
 
