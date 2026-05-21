@@ -72,7 +72,8 @@ def main():
         if alerts:
             print(f"[check_ads]   {len(alerts)} alert(s) found.")
             all_alerts.append({
-                "client_name": display_name,
+                "client_name": profile.get("name", display_name),
+                "handle":      profile.get("handle", ""),
                 "alerts":      alerts,
             })
         else:
@@ -82,27 +83,29 @@ def main():
         print("[check_ads] All clients OK. No emails sent.")
         return
 
-    # Build and send one consolidated email
-    subject = f"🚨 Alerta Tráfego Pago — {date.today().strftime('%d/%m/%Y')}"
-
-    # Merge alerts from all clients into one email
-    merged: list[dict] = []
-    client_names: list[str] = []
+    # Envia um e-mail separado por cliente
+    failed = []
     for entry in all_alerts:
-        client_names.append(entry["client_name"])
-        merged.extend(entry["alerts"])
+        client_name = entry["client_name"]
+        handle      = entry.get("handle", "")
+        label       = f"{client_name} ({handle})" if handle else client_name
+        subject     = f"🚨 Alerta Tráfego — {client_name} · {yesterday}"
 
-    html = build_alert_email(
-        client_name=", ".join(client_names),
-        check_date=yesterday,
-        alerts=merged,
-    )
+        html = build_alert_email(
+            client_name=label,
+            check_date=yesterday,
+            alerts=entry["alerts"],
+        )
 
-    sent = send_email(subject, html)
-    if sent:
-        print(f"[check_ads] Alert email sent for: {', '.join(client_names)}")
-    else:
-        print("[check_ads] Failed to send alert email.")
+        sent = send_email(subject, html)
+        if sent:
+            print(f"[check_ads] E-mail enviado: {client_name}")
+        else:
+            print(f"[check_ads] Falha ao enviar: {client_name}")
+            failed.append(client_name)
+
+    if failed:
+        print(f"[check_ads] Falha em {len(failed)} cliente(s): {', '.join(failed)}")
         sys.exit(1)
 
 

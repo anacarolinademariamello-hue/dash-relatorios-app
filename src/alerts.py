@@ -25,7 +25,7 @@ SPEND_SPIKE = 2.0    # multiplier vs 7-day avg
 # ── Resend ─────────────────────────────────────────────────────────────────────
 RESEND_API_URL = "https://api.resend.com/emails"
 SENDER         = "onboarding@resend.dev"
-RECIPIENT      = "anacarolinademariamello@gmail.com"
+RECIPIENT      = os.environ.get("EMAIL_TO", "anacarolinademariamello@gmail.com")
 
 
 def _resend_key() -> str:
