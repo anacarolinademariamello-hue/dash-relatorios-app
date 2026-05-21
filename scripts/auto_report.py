@@ -36,7 +36,7 @@ from src.profiles  import PROFILES
 
 REPORT_EMAIL = os.environ.get("EMAIL_TO", "")
 RESEND_KEY   = os.environ.get("RESEND_API_KEY", "")
-FROM_EMAIL   = "relatorios@dash.digital"   # domínio verificado no Resend
+FROM_EMAIL   = os.environ.get("FROM_EMAIL", "onboarding@resend.dev")  # use seu domínio verificado no Resend
 
 
 # ── Helpers de data ───────────────────────────────────────────────────────────
